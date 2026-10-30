@@ -175,7 +175,7 @@ const PROTOCOLS = {
     effect: (id,p) => [sy(p,0x03,[+id,0])],
     speed: (v,p) => [sy(p,0x08,[v,0xFF-v])],
     music: () => [],
-    hint: 'Frames from Colourful LED 1.3.0 (arm64), decoded by hand: 11 EE seq 00 len cmd id … sum. Power = cmd 0B, color + brightness = cmd 02, mode = cmd 03. Speed (cmd 08) is a guess. If nothing reacts, set “Output / ID byte” to 01 and try again, or use Probe.'
+    hint: 'Frames from Colourful LED 1.3.0 (arm64), decoded by hand: 11 EE seq 00 len cmd id … sum. Power = cmd 0B, color + brightness = cmd 02, mode = cmd 03. Speed (cmd 08) is a guess. Confirmed on the car: the device byte must be 01, which is now the default.'
   },
   triones: {
     label: 'Triones / HappyLighting (FFD5/FFD9)', service: U(0xFFD5), write: U(0xFFD9), wwr: true,
@@ -208,7 +208,7 @@ function detect(name, services){
 }
 
 // Samying / Colourful LED (com.smadom.ssch.colourful): 11 EE SEQ 00 LEN CMD ID data.. SUM, SUM = sum(bytes[0..n-2]) & 0xFF
-function sy(p, cmd, data){ p.seq = ((p.seq||0) % 255) + 1; const id = chanOr(p,0);
+function sy(p, cmd, data){ p.seq = ((p.seq||0) % 255) + 1; const id = chanOr(p,1);
   const f = [0x11,0xEE,p.seq,0x00,0,cmd,id,...data]; f[4] = f.length + 1; let s=0; f.forEach(b=>s+=b); f.push(s & 0xFF); return f; }
 const sum8 = a => a.reduce((s,b)=>s+b,0) & 0xFF;
 function probeSteps(p){

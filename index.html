@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b0d12">
 <title>Car Lights</title>
+<link rel="icon" id="fav" href="data:,">
 <style>
 :root{--bg:#0b0d12;--card:#151924;--line:#262c3b;--txt:#e7eaf2;--mut:#8a93a8;--acc:#6c8cff;--ok:#3ecf8e;--bad:#ff5d6c}
 *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -28,9 +29,21 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
 .warn{background:#2a1d0b;border:1px solid #5a3d12;color:#ffd08a;border-radius:12px;padding:10px;font-size:13px}
 .big{font-size:17px;padding:14px;width:100%}.tips{margin:6px 0}.tips ol{margin:4px 0 0 18px;padding:0}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
+#banner{position:sticky;top:0;z-index:50;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-weight:700;border-bottom:1px solid #0006;background:#232a3b}
+#banner.on{background:#7a1020;color:#fff;animation:pulse 1.6s ease-in-out infinite}#banner.off{background:#0f3d26;color:#c9ffe2}#banner.unk{background:#3a3220;color:#ffe4a6}
+#banner .bt{flex:1;min-width:160px;font-size:16px}#banner .bl{display:block;font-weight:400;font-size:12px;opacity:.9}
+#allOff{background:#fff;color:#7a1020;border:none;font-weight:800;font-size:18px;padding:12px 18px}#banner.off #allOff{background:#1d6b45;color:#fff;font-size:14px}
+@keyframes pulse{50%{background:#a8182e}}
+.badge{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:800;padding:4px 10px;border-radius:999px;background:#2a2f3d;color:#aab}
+.badge i{width:12px;height:12px;border-radius:50%;background:#666;display:inline-block}
+.badge.on{background:#5a0f1a;color:#ffb3bd}.badge.on i{background:#ff3b4f;box-shadow:0 0 10px 3px #ff3b4f}
+.badge.off{background:#123826;color:#9ff0c6}.badge.off i{background:#2ecc71}
+.badge.stale{opacity:.8;font-weight:600}.badge small{font-weight:500;opacity:.85}
+.note{color:var(--mut);font-size:12px;margin:6px 0 0}
 </style>
 </head>
 <body>
+<div id="banner" class="unk"><span class="bt">Light status unknown<span class="bl"></span></span><button id="allOff">ALL OFF</button></div>
 <header><h1>🚗 Car Lights</h1><p>Interior · Star lights 1 &amp; 2 · Underglow over Web Bluetooth</p></header>
 <main>
 <div id="support" class="warn" hidden></div>
@@ -39,6 +52,8 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
 <section class="card" id="master">
   <h2>✨ All lights</h2>
   <div class="sub">Sends to every connected panel</div>
+  <div class="note">ℹ️ The ON/OFF indicators show only what this page sent or what a controller reported back. Changes made with the original apps or a remote won’t show here. The interior lights report their real state, while star lights and underglow are assumed from the last command. Reconnect a light to refresh it.</div>
+  <div class="row"><button class="grow" id="notifBtn">🔔 Remind me if I leave with lights on</button></div>
   <div class="row"><button class="pri grow" id="mConnect">Connect all</button><button class="grow" id="mOn">All on</button><button class="grow" id="mOff">All off</button></div>
   <div class="row"><label>Color</label><input type="color" id="mColor" value="#ff0040"><div class="sw" id="mSw"></div></div>
   <div class="row"><label>Brightness</label><input type="range" id="mBri" min="0" max="100" value="100"><span class="val" id="mBriV">100</span></div>
@@ -54,7 +69,7 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
 
 <template id="panelTpl">
 <section class="card panel">
-  <h2><span class="dot"></span><span class="title"></span></h2>
+  <h2><span class="dot"></span><span class="title"></span><span class="badge"><i></i><span class="bt">Unknown</span></span></h2>
   <div class="sub status">Not connected</div>
   <div class="row"><button class="pri grow b-conn">Connect</button><button class="b-pick">Pick device</button><button class="b-any">Show all devices</button><button class="b-disc" disabled>Disconnect</button></div>
   <div class="tips warn" hidden></div>
@@ -104,6 +119,7 @@ const PROTOCOLS = {
     label: 'Dynamic ambient (FINDN “CMM”, FFC0/FFC1)', service: U(0xFFC0), write: U(0xFFC1), notify: U(0xFFC2), wwr: true,
     effects: FINDN_FX,
     init: async p => { await p.send(fc(0x00)); await sleep(80); await p.send(fc(0x01)); },
+    query: () => [fc(0x00)],   // controller answers on FFC2 with FC 0E/10 00 … (byte 13 = on/off)
     power: (on) => [fc(0x05, on ? 1 : 0)],
     color: (r,g,b) => [fc(0x04, r,g,b, r,g,b)],
     bright: v => [fc(0x02, v, v)],
@@ -255,7 +271,7 @@ class Panel {
     }
     const sel = $('.proto'); Object.entries(PROTOCOLS).forEach(([k,p]) => sel.add(new Option(p.label, k)));
     sel.value = localStorage.getItem('proto_'+cfg.key) || cfg.def; sel.onchange = () => this.setProto(sel.value, true);
-    this.setProto(sel.value);
+    this.setProto(sel.value); this.renderState();
     $('.b-conn').onclick = () => this.connect(false, true); $('.b-pick').onclick = () => this.connect(false, false); $('.b-any').onclick = () => this.connect(true, false);
     $('.b-probe').onclick = () => this.probe(); $('.b-probe-stop').onclick = () => { this.probing = false; }; $('.b-disc').onclick = () => this.disconnect();
     $('.b-on').onclick = () => this.power(true); $('.b-off').onclick = () => this.power(false);
@@ -264,7 +280,7 @@ class Panel {
     $('.bri').oninput = e => { $('.v-bri').textContent = e.target.value; this.bright(+e.target.value); };
     $('.spd').oninput = e => { $('.v-spd').textContent = e.target.value; this.speed(+e.target.value); };
     $('.fx').onchange = e => this.effect(e.target.value);
-    $('.b-mic').onclick = () => this.run(this.P.music(this), 'music');
+    $('.b-mic').onclick = () => this.run(this.P.music(this), 'music', true);
     $('.chan').onchange = e => this.chan = e.target.value;
     $('.b-raw').onclick = () => { const s = $('.raw').value.replace(/0x/gi,'').replace(/[^0-9a-f]/gi,''); if (s.length%2) return log('Raw hex needs whole bytes','bad'); this.run([s.match(/../g).map(h=>parseInt(h,16))],'raw'); };
     document.getElementById('panels').appendChild(el);
@@ -309,7 +325,7 @@ class Panel {
   async attach(dev){
     this.dev = dev; this.seq = 0; localStorage.setItem('dev_'+this.key, dev.id);
     if (dev.name) { localStorage.setItem('devname_'+this.key, dev.name); this.$('.title').textContent = `${this.title} · ${dev.name}`; }
-    if (!dev._clBound) { dev._clBound = true; dev.addEventListener('gattserverdisconnected', () => { if (this.dev === dev) { this.ch = null; this.status(`Disconnected: ${dev.name||dev.id}`); log(`${this.key}: disconnected`,'bad'); } }); }
+    if (!dev._clBound) { dev._clBound = true; dev.addEventListener('gattserverdisconnected', () => { if (this.dev === dev) { this.ch = null; this.status(`Disconnected: ${dev.name||dev.id}`); log(`${this.key}: disconnected`,'bad'); clearInterval(this.pollT); updateAll(); } }); }
     const server = await this.gattConnect(dev);
     let services = [];
     try { services = await server.getPrimaryServices(); } catch(e){ log(`${this.key}: service list failed: ${e.message}`); }
@@ -332,6 +348,31 @@ class Panel {
       await this.send([0x2A,0x05,FF,FF,FF,FF,FF,FF,0xAF]);
     }
     if (this.P.init) await this.P.init(this);
+    this.renderState();
+    clearInterval(this.pollT);
+    if (this.P.query) this.pollT = setInterval(() => { if (this.ch && this.dev.gatt.connected && !document.hidden) this.P.query(this).forEach(f => this.send(f)); }, 20000);
+  }
+  // ---- on/off state ----
+  loadState(){ try { return JSON.parse(localStorage.getItem('state_'+this.key)) || null; } catch(e){ return null; } }
+  setState(on, src){
+    const prev = this.loadState();
+    localStorage.setItem('state_'+this.key, JSON.stringify({on, src, t: Date.now()}));
+    if (!prev || prev.on !== on || prev.src !== src) log(`${this.key}: state → ${on?'ON':'OFF'} (${src})`, on ? 'bad' : 'ok');
+    updateAll();
+  }
+  connected(){ return !!(this.ch && this.dev && this.dev.gatt.connected); }
+  renderState(){
+    const s = this.loadState(), b = this.$('.badge'), live = this.connected();
+    b.className = 'badge' + (s ? (s.on ? ' on' : ' off') : '') + (s && !live ? ' stale' : '');
+    let txt = 'Unknown';
+    if (s) { const w = s.on ? 'ON' : 'OFF';
+      txt = live ? `${w} <small>${s.src==='reported'?'reported':'assumed'}</small>` : `Last known: ${w} <small>(${ago(s.t)})</small>`; }
+    b.querySelector('.bt').innerHTML = txt;
+    b.title = s ? `${s.src==='reported' ? 'Reported by the controller' : 'Assumed from the last command this page sent'} · ${new Date(s.t).toLocaleString()}` : 'This page has no record of this light';
+  }
+  onRx(b){
+    // FINDN status: FC 0E 00 … / FC 10 00 … byte13 = isDeviceOn (from com.findn.htx MyApplication.onNotify)
+    if (this.proto === 'findn' && b[0] === 0xFC && (b[1] === 0x0E || b[1] === 0x10) && b[2] === 0x00 && b.length > 13) this.setState(b[13] !== 0, 'reported');
   }
   async bindChar(){
     const map = this.gattMap || [];
@@ -348,7 +389,7 @@ class Panel {
     for (const m of map.length ? map : [{s:svc,c:ch}]) {
       const pr = m.c.properties; if (!(pr.notify || pr.indicate) || m.c._rx) continue;
       try { await m.c.startNotifications(); m.c._rx = true; const u = m.c.uuid.slice(4,8);
-        m.c.addEventListener('characteristicvaluechanged', e => log(`${this.key} RX ${u}: ${hex(new Uint8Array(e.target.value.buffer))}`));
+        m.c.addEventListener('characteristicvaluechanged', e => { const b = new Uint8Array(e.target.value.buffer); log(`${this.key} RX ${u}: ${hex(b)}`); this.onRx(b); });
         log(`${this.key}: notifications on ${u}`);
       } catch(e){ log(`${this.key}: notify ${m.c.uuid.slice(4,8)} unavailable (${e.message})`); }
     }
@@ -359,11 +400,11 @@ class Panel {
     log(`${this.key}: PROBE start. Watch the lights and note the step number that changes them.`,'ok');
     for (let i = 0; i < steps.length && this.probing; i++) {
       log(`${this.key}: PROBE step ${i+1}/${steps.length}: ${steps[i][0]}`,'ok');
-      steps[i][1]().forEach(f => this.send(f)); await sleep(1500);
+      steps[i][1]().forEach(f => this.send(f)); if (i === 0) this.setState(true, 'sent'); await sleep(1500);
     }
     log(`${this.key}: PROBE ${this.probing ? 'finished' : 'stopped'}`,'ok'); this.probing = false;
   }
-  disconnect(){ if (this.dev && this.dev.gatt.connected) this.dev.gatt.disconnect(); this.status('Not connected'); }
+  disconnect(){ clearInterval(this.pollT); if (this.dev && this.dev.gatt.connected) this.dev.gatt.disconnect(); this.status('Not connected'); updateAll(); }
   send(bytes){
     const job = async () => {
       if (!this.ch) throw new Error('not connected');
@@ -373,17 +414,25 @@ class Panel {
       if (wwr && this.ch.writeValueWithoutResponse) await this.ch.writeValueWithoutResponse(buf);
       else if (this.ch.writeValueWithResponse) await this.ch.writeValueWithResponse(buf);
       else await this.ch.writeValue(buf);
-      await sleep(25);
+      await sleep(25); return true;
     };
-    this.q = this.q.then(job, job); return this.q.catch(e => log(`${this.key}: write failed: ${e.message}`,'bad'));
+    this.q = this.q.then(job, job); return this.q.catch(e => { log(`${this.key}: write failed: ${e.message}`,'bad'); return false; });
   }
-  run(frames, what){ if (!this.ch) return; frames.forEach(f => this.send(f)); }
+  // state: true/false = this command turns the light on/off; undefined = no change (raw bytes)
+  async run(frames, what, state){
+    if (!this.ch) return false;
+    const ok = (await Promise.all(frames.map(f => this.send(f)))).every(Boolean);
+    if (ok && state !== undefined && frames.length) this.setState(state, 'sent');
+    // controllers that report status (FINDN interior): ask again so the badge shows the real state
+    if (ok && state !== undefined && this.P.query) this.throttled('q', () => this.connected() && this.P.query(this).forEach(f => this.send(f)), 500);
+    return ok;
+  }
   throttled(name, fn, ms){ clearTimeout(this['t_'+name]); this['t_'+name] = setTimeout(fn, ms); }
-  power(on){ this.run(this.P.power(on, this)); }
-  color(rgb){ this.rgb = rgb; this.throttled('c', () => this.run(this.P.color(...rgb, this)), 60); }
-  bright(v){ this.briV = v; this.throttled('b', () => this.run(this.P.bright(clamp(v,0,100), this)), 60); }
-  speed(v){ this.spdV = v; this.throttled('s', () => this.run(this.P.speed(clamp(v,0,100), this)), 80); }
-  effect(id){ if (id === '') return; this.run(this.P.effect(id, this)); }
+  power(on){ return this.run(this.P.power(on, this), 'power', on); }
+  color(rgb){ this.rgb = rgb; this.throttled('c', () => this.run(this.P.color(...rgb, this), 'color', true), 60); }
+  bright(v){ this.briV = v; this.throttled('b', () => this.run(this.P.bright(clamp(v,0,100), this), 'bright', true), 60); }
+  speed(v){ this.spdV = v; this.throttled('s', () => this.run(this.P.speed(clamp(v,0,100), this), 'speed', true), 80); }
+  effect(id){ if (id === '') return; this.run(this.P.effect(id, this), 'effect', true); }
 }
 const panels = PANELS.map(c => new Panel(c));
 
@@ -391,7 +440,7 @@ const panels = PANELS.map(c => new Panel(c));
 const mColor = document.getElementById('mColor'), mBri = document.getElementById('mBri');
 const live = () => panels.filter(p => p.ch && p.dev && p.dev.gatt.connected);
 document.getElementById('mOn').onclick = () => live().forEach(p => p.power(true));
-document.getElementById('mOff').onclick = () => live().forEach(p => p.power(false));
+document.getElementById('mOff').onclick = () => allOff();
 mColor.oninput = () => { const c = hexToRgb(mColor.value); panels.forEach(p => p.$('.color').value = mColor.value); live().forEach(p => p.color(c)); };
 SWATCHES.forEach(c => { const b = document.createElement('b'); b.style.background=c; b.onclick=()=>{ mColor.value=c; mColor.oninput(); }; document.getElementById('mSw').appendChild(b); });
 mBri.oninput = () => { document.getElementById('mBriV').textContent = mBri.value; panels.forEach(p => { p.$('.bri').value = mBri.value; p.$('.v-bri').textContent = mBri.value; }); live().forEach(p => p.bright(+mBri.value)); };
@@ -409,6 +458,71 @@ document.getElementById('mConnect').onclick = async () => {
   if (p) { log(`Connect all: choose the device for ${p.title}. Tap again for the next one.`); p.connect(false, false); }
   else log('All lights connected','ok');
 };
+
+// ---------- on/off indicator, banner, title, favicon, reminders ----------
+function ago(t){ const s = Math.max(0, (Date.now()-t)/1000|0);
+  if (s < 60) return 'just now'; if (s < 3600) return `${s/60|0} min ago`; if (s < 86400) return `${s/3600|0} h ${(s%3600)/60|0} min ago`; return `${s/86400|0} d ago`; }
+function onCount(){ return panels.filter(p => { const s = p.loadState(); return s && s.on; }); }
+function favicon(color){ document.getElementById('fav').href = 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" fill="${color}"/></svg>`); }
+function updateAll(){
+  try { panels; } catch(e){ return; }
+  panels.forEach(p => p.renderState());
+  const on = onCount(), states = panels.map(p => p.loadState()), unknown = states.filter(s => !s).length;
+  const bn = document.getElementById('banner'), bt = bn.querySelector('.bt');
+  const list = on.map(p => { const s = p.loadState(); return `${p.title.replace(/^\S+\s/,'')}${p.connected() ? (s.src==='reported' ? '' : ' (assumed)') : ` (last known, ${ago(s.t)})`}`; }).join(' · ');
+  if (on.length) {
+    bn.className = 'on'; bt.innerHTML = `🔴 ${on.length} light${on.length>1?'s':''} ON<span class="bl">${list}</span>`;
+    document.getElementById('allOff').textContent = 'ALL OFF';
+    document.title = `🔴 ${on.length} ON · Car Lights`; favicon('#ff2d48');
+  } else if (!unknown) {
+    bn.className = 'off'; bt.innerHTML = '🟢 All lights off<span class="bl">From the last commands sent or reported here</span>';
+    document.getElementById('allOff').textContent = 'Send OFF again';
+    document.title = 'Car Lights'; favicon('#2ecc71');
+  } else {
+    bn.className = 'unk'; bt.innerHTML = `No lights known ON · ${unknown} unknown<span class="bl">Connect a light to find out, or tap ALL OFF to be safe</span>`;
+    document.getElementById('allOff').textContent = 'ALL OFF';
+    document.title = 'Car Lights'; favicon('#8a93a8');
+  }
+}
+async function allOff(){
+  // 1) every connected light: send OFF right away
+  const targets = panels.filter(p => { const s = p.loadState(); return !(s && !s.on) || p.connected(); });
+  panels.filter(p => p.connected()).forEach(p => p.power(false));
+  const offline = targets.filter(p => !p.connected());
+  if (!offline.length) { log(`ALL OFF: sent OFF to ${live().length} connected light(s)`, 'ok'); return; }
+  if (!navigator.bluetooth) return log('ALL OFF: Web Bluetooth is not available, so the lights that aren’t connected can’t be reached','bad');
+  // 2) lights Chrome already allowed: reconnect silently (no chooser) and switch off
+  let allowed = [];
+  try { if (navigator.bluetooth.getDevices) allowed = await navigator.bluetooth.getDevices(); } catch(e){}
+  const withDev = [], needPick = [];
+  offline.forEach(p => { const d = allowed.find(d => d.id === localStorage.getItem('dev_'+p.key)); d ? withDev.push([p,d]) : needPick.push(p); });
+  // 3) Chrome allows only one chooser per tap, so open it for the first light that needs one
+  if (needPick.length) { const p = needPick[0];
+    log(`ALL OFF: choose the device for ${p.title} to switch it off${needPick.length>1 ? `. Then tap ALL OFF again for the other ${needPick.length-1}` : ''}.`);
+    p.connect(false, false).then(() => p.connected() && p.power(false));
+  }
+  await Promise.all(withDev.map(async ([p,d]) => { try { log(`ALL OFF: reconnecting ${p.key}`); await p.attach(d); await p.power(false); } catch(e){ log(`ALL OFF: ${p.key} unreachable: ${e.message}`,'bad'); } }));
+}
+document.getElementById('allOff').onclick = () => allOff();
+setInterval(updateAll, 30000);
+window.addEventListener('beforeunload', e => { if (onCount().length) { e.preventDefault(); e.returnValue = 'Some car lights are still ON.'; return e.returnValue; } });
+let swReg = null;
+if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').then(r => swReg = r).catch(() => {});
+async function notifyOn(){
+  const on = onCount(); if (!on.length || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const body = on.map(p => p.title.replace(/^\S+\s/,'')).join(', ') + ' may still be ON. The lights are wired hot, so open Car Lights and tap ALL OFF.';
+  const opt = {body, tag:'car-lights-on', renotify:true, requireInteraction:true};
+  try { const r = swReg || (navigator.serviceWorker && await navigator.serviceWorker.getRegistration()); if (r) return r.showNotification(`🔴 ${on.length} car light${on.length>1?'s':''} ON`, opt); } catch(e){}
+  try { new Notification(`🔴 ${on.length} car light${on.length>1?'s':''} ON`, opt); } catch(e){ log('Notification failed. On Android, notifications need sw.js next to index.html.','bad'); }
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) notifyOn(); else updateAll(); });
+(() => { const b = document.getElementById('notifBtn');
+  const set = () => { if (!('Notification' in window)) { b.disabled = true; b.textContent = '🔔 Notifications not supported here'; }
+    else if (Notification.permission === 'granted') b.textContent = '🔔 Reminders on: you’ll get a notification if you leave with lights ON';
+    else if (Notification.permission === 'denied') b.textContent = '🔕 Notifications blocked. Allow them in site settings'; };
+  set(); b.onclick = async () => { if ('Notification' in window) { await Notification.requestPermission(); set(); if (Notification.permission==='granted') log('Reminder notifications enabled','ok'); } };
+})();
+updateAll();
 
 // ---------- environment check ----------
 (() => { const s = document.getElementById('support'); const m = [];

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Car Lights</title>
+<style>
+:root{--bg:#0b0d12;--card:#151924;--line:#262c3b;--txt:#e7eaf2;--mut:#8a93a8;--acc:#6c8cff;--ok:#3ecf8e;--bad:#ff5d6c}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:14px 16px 6px}h1{font-size:20px;margin:0}header p{margin:4px 0 0;color:var(--mut);font-size:13px}
+main{padding:8px 12px 40px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0}
+.card h2{font-size:17px;margin:0;display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;background:#555;display:inline-block}.dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.sub{color:var(--mut);font-size:12px;margin:2px 0 10px;word-break:break-all}
+.row{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}.row>label{min-width:84px;color:var(--mut);font-size:13px}
+button{background:#232a3b;color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:11px 14px;font-size:15px;min-height:44px}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}button.on{background:var(--ok);border-color:var(--ok);color:#06210f;font-weight:700}
+button:disabled{opacity:.45}.grow{flex:1}
+select,input[type=text]{background:#0f131c;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:15px;min-height:44px;flex:1;min-width:0}
+input[type=range]{flex:1;accent-color:var(--acc);min-height:32px}
+input[type=color]{width:64px;height:44px;border:none;background:none;padding:0}
+.sw{display:flex;gap:6px;flex-wrap:wrap}.sw b{width:34px;height:34px;border-radius:50%;border:2px solid #0006;display:inline-block}
+details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;padding:6px 0}
+.val{min-width:34px;text-align:right;color:var(--mut);font-variant-numeric:tabular-nums}
+#log{background:#07090d;border:1px solid var(--line);border-radius:12px;height:220px;overflow:auto;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;padding:8px;white-space:pre-wrap}
+.warn{background:#2a1d0b;border:1px solid #5a3d12;color:#ffd08a;border-radius:12px;padding:10px;font-size:13px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+</style>
+</head>
+<body>
+<header><h1>🚗 Car Lights</h1><p>Interior · Star lights · Underglow over Web Bluetooth</p></header>
+<main>
+<div id="support" class="warn" hidden></div>
+<div class="warn">Before connecting, <b>force-stop</b> “Dynamic ambient lighting”, “LED LAMP” and “Colourful LED” (Settings → Apps → Force stop). Each controller accepts one connection at a time. Works in Chrome on Android, but not on iPhone or iPad.</div>
+
+<section class="card" id="master">
+  <h2>✨ All lights</h2>
+  <div class="sub">Sends to every connected panel</div>
+  <div class="row"><button class="pri grow" id="mConnect">Connect all</button><button class="grow" id="mOn">All on</button><button class="grow" id="mOff">All off</button></div>
+  <div class="row"><label>Color</label><input type="color" id="mColor" value="#ff0040"><div class="sw" id="mSw"></div></div>
+  <div class="row"><label>Brightness</label><input type="range" id="mBri" min="0" max="100" value="100"><span class="val" id="mBriV">100</span></div>
+</section>
+
+<div id="panels"></div>
+
+<section class="card"><h2>🪵 Debug log</h2>
+  <div class="row"><button id="logClear">Clear</button><button id="logCopy">Copy</button><label style="min-width:auto"><input type="checkbox" id="logTx" checked> show TX bytes</label></div>
+  <div id="log"></div>
+</section>
+</main>
+
+<template id="panelTpl">
+<section class="card panel">
+  <h2><span class="dot"></span><span class="title"></span></h2>
+  <div class="sub status">Not connected</div>
+  <div class="row"><button class="pri grow b-conn">Connect</button><button class="b-any">Show all devices</button><button class="b-disc" disabled>Disconnect</button></div>
+  <div class="row"><label>Protocol</label><select class="proto"></select></div>
+  <div class="row"><label>Power</label><button class="grow b-on">On</button><button class="grow b-off">Off</button></div>
+  <div class="row"><label>Color</label><input type="color" class="color" value="#ff0040"><div class="sw"></div></div>
+  <div class="row"><label>Brightness</label><input type="range" class="bri" min="0" max="100" value="100"><span class="val v-bri">100</span></div>
+  <div class="row"><label>Effect</label><select class="fx"></select></div>
+  <div class="row"><label>Speed</label><input type="range" class="spd" min="0" max="100" value="50"><span class="val v-spd">50</span></div>
+  <div class="row"><label>Music</label><button class="grow b-mic">Mic / music mode</button></div>
+  <details><summary>Advanced</summary>
+    <div class="row"><label>Output byte</label><select class="chan"><option value="">default</option><option value="0">00 (all)</option><option value="1">01 (LED1)</option><option value="2">02 (LED2)</option><option value="255">FF</option></select></div>
+    <div class="row"><label>Raw hex</label><input type="text" class="raw" placeholder="7E FF 04 01 00 FF FF 00 EF"><button class="b-raw">Send</button></div>
+    <div class="sub hint"></div>
+  </details>
+</section>
+</template>
+
+<script>
+"use strict";
+const EFFECTS = {"elk":[[128,"Static Red"],[129,"Static Blue"],[130,"Static Green"],[131,"Static Cyan"],[132,"Static Yellow"],[133,"Static Purple"],[134,"Static White"],[135,"Three Color Jumping Change"],[136,"Seven Color Jumping Change"],[137,"Three Color Cross Fade"],[138,"Seven Color Cross Fade"],[139,"Red Gradual Change"],[140,"Green Gradual Change"],[141,"Blue Gradual Change"],[142,"Yellow Gradual Change"],[143,"Cyan Gradual Change"],[144,"Purple Gradual Change"],[145,"White Gradual Change"],[146,"Red Green Cross Fade"],[147,"Red Blue Cross Fade"],[148,"Green Blue Cross Fade"],[149,"Seven color Stobe Flash"],[150,"Red Strobe Flash"],[151,"Green Strobe Flash"],[152,"Blue Strobe Flash"],[153,"Yellow Strobe Flash"],[154,"Cyan Strobe Flash"],[155,"Purple Strobe Flash"],[156,"White Strobe Flash"]],"ble":[[135,"Tricolor jump"],[136,"Seven-color jump"],[137,"Tricolor gradient"],[138,"even-color gradient"],[139,"Red gradient"],[140,"Green gradient"],[141,"Blue gradient"],[142,"Yellow gradient"],[143,"Cyan gradient"],[144,"Purple gradient"],[145,"White gradient"],[146,"Red-Green gradient"],[147,"Red-Blue gradient"],[148,"Green-Blue gradient"],[149,"Seven-color flash"],[150,"Red flash"],[151,"Green flash"],[152,"Blue flash"],[153,"Yellow flash"],[154,"Cyan flash"],[155,"Purple flash"],[156,"White flash"],[157,"Seven-color breathe"]],"dmx":[[255,"AUTO"],[1,"Forward Dreaming"],[2,"Backward Dreaming"],[3,"Forward 7 Colors"],[4,"Backward 7 Colors"],[5,"Forward RD/GN/BU"],[6,"Backward RD/GN/BU"],[7,"Forward YE/CN/VT"],[8,"Backward YE/CN/VT"],[9,"Forward 6 Colors RD"],[10,"Backward 6 Colors RD"],[11,"Forward 6 Colors GN"],[12,"Backward 6 Colors GN"],[13,"Forward 6 Colors BU"],[14,"Backward 6 Colors BU"],[15,"Forward 6 Colors CN"],[16,"Backward 6 Colors CN"],[17,"Forward 6 Colors YE"],[18,"Backward 6 Colors YE"],[19,"Forward 6 Colors VT"],[20,"Backward 6 Colors VT"],[21,"Forward 6 Colors WH"],[22,"Backward 6 Colors WH"],[23,"Forward Trailing 7 Colors"],[24,"Backward Trailing 7 Colors"],[25,"Forward Trailing RD"],[26,"Backward Trailing RD"],[27,"Forward Trailing GN"],[28,"Backward Trailing GN"],[29,"Forward Trailing BU"],[30,"Backward Trailing BU"],[31,"Forward Trailing YE"],[32,"Backward Trailing YE"],[33,"Forward Trailing CN"],[34,"Backward Trailing CN"],[35,"Forward Trailing VT"],[36,"Backward Trailing VT"],[37,"Forward Trailing WH"],[38,"Backward Trailing WH"],[39,"Forward Streaming 7 Colors"],[40,"Backward Streaming 7 Colors"],[41,"Forward Streaming RD/GN/BU"],[42,"Backward Streaming RD/GN/BU"],[43,"Forward Streaming YE/CN/VT"],[44,"Backward Streaming YE/CN/VT"],[45,"Forward Streaming RD/GN"],[46,"Backward Streaming RD/GN"],[47,"Forward Streaming GN/BU"],[48,"Backward Streaming GN/BU"],[49,"Forward Streaming YE/BU"],[50,"Backward Streaming YE/BU"],[51,"Forward Streaming YE/CN"],[52,"Backward Streaming YE/CN"],[53,"Forward Streaming CN/VT"],[54,"Backward Streaming CN/VT"],[55,"Forward Streaming BK/WH"],[56,"Backward Streaming BK/WH"],[57,"Open Curtain 7 Colors"],[58,"Close Curtain 7 Colors"],[59,"Open Curtain RD/GN/BU"],[60,"Close Curtain RD/GN/BU"],[61,"Open Curtain YE/CN/VT"],[62,"Close Curtain YE/CN/VT"],[63,"Forward Follow Spot 7 Colors"],[64,"Backward Follow Spot 7 Colors"],[65,"Forward Follow Spot RD/GN/BU"],[66,"Backward Follow Spot RD/GN/BU"],[67,"Forward Follow Spot YE/CN/VT"],[68,"Backward Follow Spot YE/CN/VT"],[69,"Forward Flutter 7 Colors"],[70,"Backward Flutter 7 Colors"],[71,"Forward Flutter RD/GN/BU"],[72,"Backward Flutter RD/GN/BU"],[73,"Forward Flutter YE/CN/VT"],[74,"Backward Flutter YE/CN/VT"],[75,"Hop 7 Colors"],[76,"Hop RD/GN/BU"],[77,"Hop RD/GN/BU"],[78,"Strobe 7 Colors"],[79,"Strobe RD/GN/BU"],[80,"Strobe YE/CN/VT"],[81,"Gradual 7 Colors"],[82,"Gradual RD/E"],[83,"Gradual RD/VT"],[84,"Gradual GN/CN"],[85,"Gradual GN/YE"],[86,"Gradual BU/VT"],[87,"Close Curtain RD"],[88,"Close Curtain GN"],[89,"Close Curtain BU"],[90,"Close Curtain YE"],[91,"Close Curtain CN"],[92,"Close Curtain VT"],[93,"Close Curtain WH"],[94,"Open Curtain RD"],[95,"Open Curtain GN"],[96,"Open Curtain BU"],[97,"Open Curtain YE"],[98,"Open Curtain CN"],[99,"Open Curtain VT"],[100,"Open Curtain WH"],[101,"Horse Race RD"],[102,"Horse Race GN"],[103,"Horse Race BU"],[104,"Horse Race YE"],[105,"Horse Race CN"],[106,"Horse Race VT"],[107,"Horse Race WH"],[108,"Forward Run RD"],[109,"Backward Run RD"],[110,"Forward Run GN"],[111,"Backward Run GN"],[112,"Forward Run BU"],[113,"Backward Run BU"],[114,"Forward Run YE"],[115,"Backward Run YE"],[116,"Forward Run CN"],[117,"Backward Run CN"],[118,"Forward Run VT"],[119,"Backward Run VT"],[120,"Forward Run WH"],[121,"Backward Run WH"],[122,"Forward Run 7 Colors"],[123,"Backward Run 7 Colors"],[124,"Forward Run RD/GN/BU"],[125,"Backward Run RD/GN/BU"],[126,"Forward Run YE/CN/VT"],[127,"Backward Run YE/CN/VT"],[128,"Forward Run BU/YE/VT"],[129,"Forward Run GN/BU/YE"],[130,"Backward Run BU/YE/VT"],[131,"Forward Run RD/ON/WH"],[132,"Backward Run RD/ON/WH"],[133,"Forward Run GN ON RD"],[134,"Backward Run GN ON RD"],[135,"Forward Run BU ON GN"],[136,"Backward Run BU ON GN"],[137,"Forward Run YE ON BU"],[138,"Backward Run YE ON BU"],[139,"Forward Run CN ON YE"],[140,"Backward Run CN ON YE"],[141,"Forward Run VT ON CN"],[142,"Backward Run VT ON CN"],[143,"Forward Run WH ON VT"],[144,"Backward Run WH ON VT"],[145,"Forward Run WH ON RD"],[146,"Backward Run WH ON RD"],[147,"Forward Run 7 COLOR ON RD"],[148,"Backward Run 7 COLOR ON RD"],[149,"Forward Run 7 COLOR ON GN"],[150,"Backward Run 7 COLOR ON GN"],[151,"Forward Run 7 COLOR ON BU"],[152,"Backward Run 7 COLOR ON BU"],[153,"Forward Run 7 COLOR ON YE"],[154,"Backward Run 7 COLOR ON YE"],[155,"Forward Run 7 COLOR ON CN"],[156,"Backward Run 7 COLOR ON CN"],[157,"Forward Run 7 COLOR ON VT"],[158,"Backward Run 7 COLOR ON VT"],[159,"Forward Run 7 COLOR ON WH"],[160,"Backward Run 7 COLOR ON WH"],[161,"Forward Flow WH RD WH"],[162,"Backward Flow WH RD WH"],[163,"Forward Flow WH GN WH"],[164,"Backward Flow WH GN WH"],[165,"Forward Flow WH BU WH"],[166,"Backward Flow WH BU WH"],[167,"Forward Flow WH YE WH"],[168,"Backward Flow WH YE WH"],[169,"Forward Flow WH CN WH"],[170,"Backward Flow WH CN WH"],[171,"Forward Flow WH VT WH"],[172,"Backward Flow WH VT WH"],[173,"Forward Flow RD WH RD"],[174,"Backward Flow RD WH RD"],[175,"Forward Flow GN WH GN"],[176,"Backward Flow GN WH GN"],[177,"Forward Flow BU WH BU"],[178,"Backward Flow BU WH BU"],[179,"Forward Flow YE WH YE"],[180,"Backward Flow YE WH YE"],[181,"Forward Flow CN WH CN"],[182,"Backward Flow CN WH CN"],[183,"Forward Flow VT WH VT"],[184,"Backward Flow VT WH VT"],[185,"Forward Run GN ON BU"],[186,"Backward Run GN ON BU"],[187,"Forward Run GN ON RD"],[188,"Backward Run GN ON RD"],[189,"Forward Run RD ON BU"],[190,"Backward Run RD ON BU"],[191,"Forward Run CN ON YE"],[192,"Backward Run CN ON YE"],[193,"Forward Run YE ON VT"],[194,"Backward Run YE ON VT"],[195,"Forward Run WH ON YE"],[196,"Backward Run WH ON YE"],[197,"Forward Run YE ON WH"],[198,"Backward Run YE ON WH"],[199,"Forward Swab 7 COLORS"],[200,"Backward Swab 7 COLORS"],[201,"Forward Swab RD GN BU"],[202,"Backward Swab RD GN BU"],[203,"Forward Swab YE CN VT"],[204,"Backward Swab YE CN VT"],[205,"Open Curtain Swab 7 COLORS"],[206,"Close Curtain Swab 7 COLORS"],[207,"Open Curtain Swab R G B"],[208,"Close Curtain Swab R G B"],[209,"Open Curtain Swab Y C P"],[210,"Close Curtain Swab Y C P"]]};
+const U = n => (typeof n === 'number') ? '0000' + n.toString(16).padStart(4,'0') + '-0000-1000-8000-00805f9b34fb' : n.toLowerCase();
+const hex = a => Array.from(a, b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+const clamp = (v,a,b) => Math.max(a, Math.min(b, Math.round(v)));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const FF = 0xFF;
+
+// ---------- logging ----------
+const logEl = document.getElementById('log');
+function log(msg, cls){ const t = new Date().toLocaleTimeString(); const d = document.createElement('div'); if(cls) d.className = cls; d.textContent = `[${t}] ${msg}`; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+document.getElementById('logClear').onclick = () => logEl.textContent = '';
+document.getElementById('logCopy').onclick = () => navigator.clipboard && navigator.clipboard.writeText(logEl.innerText).then(()=>log('Log copied'));
+
+// ---------- protocols ----------
+// FINDN "Dynamic ambient lighting" (com.findn.htx): FC LEN CMD data.. CHK FA ; CHK = ~(LEN+CMD+sum(data)) & 0xFF
+function fc(cmd, ...data){ const len = 1 + data.length; let s = len + cmd; data.forEach(d => s += d); return [0xFC, len, cmd, ...data, (~s) & 0xFF, 0xFA]; }
+const FINDN_FX = [
+  {id:'r0',name:'Monochrome (static)'},{id:'r1',name:'Gradient'},{id:'r2',name:'Breathe'},{id:'r3',name:'Strobe'},{id:'r4',name:'Automatic'},{id:'r6',name:'Rhythm (music)'},
+  {id:'f4',name:'Flow: Meteor'},{id:'f5',name:'Flow: Sport'},{id:'f6',name:'Flow: Shadow'},{id:'f7',name:'Flow: Trailing'},{id:'f8',name:'Flow: Light waves'},{id:'f9',name:'Flow: Pile'},
+  {id:'f10',name:'Flow: Sync'},{id:'f11',name:'Flow: Colorful'},{id:'f12',name:'Flow: Music rhythm'},{id:'f13',name:'Flow: Seven colors'},{id:'f14',name:'Flow: Cool dynamic'}];
+const fxList = arr => arr.map(([id,name]) => ({id, name: `${id} · ${name}`}));
+const chanOr = (p, d) => (p.chan === '' || p.chan == null) ? d : +p.chan;
+
+const PROTOCOLS = {
+  findn: {
+    label: 'Dynamic ambient (FINDN “CMM”, FFC0/FFC1)', service: U(0xFFC0), write: U(0xFFC1), notify: U(0xFFC2), wwr: true,
+    effects: FINDN_FX,
+    init: async p => { await p.send(fc(0x00)); await sleep(80); await p.send(fc(0x01)); },
+    power: (on) => [fc(0x05, on ? 1 : 0)],
+    color: (r,g,b) => [fc(0x04, r,g,b, r,g,b)],
+    bright: v => [fc(0x02, v, v)],
+    effect: (id, p) => { const n = +id.slice(1); p.fxKind = id[0]; return id[0] === 'r' ? [fc(0x03, n, n)] : [fc(0x22, n & 0x0F)]; },
+    speed: (v, p) => p.fxKind === 'f' ? [fc(0x23, clamp(v/20,0,5))] : [fc(0x07, clamp(1 + v/25,1,5))],
+    music: () => [fc(0x03, 6, 6), fc(0x06, 80)],
+    hint: 'Frames from decompiled com.findn.htx v1.1.1. Brightness sets zone 1 and zone 2 together, and color goes to both zones (“Unite”).'
+  },
+  ledble: {
+    label: 'LED LAMP · LEDBLE / LEDCAR-00 (FFE0/FFE1, 7E…EF)', service: U(0xFFE0), write: U(0xFFE1), wwr: false, auth: true,
+    effects: fxList(EFFECTS.ble),
+    power: (on,p) => [[0x7E,FF,0x04,on?1:0,0x00,FF,FF,chanOr(p,0),0xEF]],
+    color: (r,g,b,p) => [[0x7E,FF,0x05,0x03,r,g,b,chanOr(p,FF),0xEF]],
+    bright: (v,p) => [[0x7E,FF,0x01,v,0x00,FF,FF,chanOr(p,FF),0xEF]],
+    effect: (id,p) => [[0x7E,FF,0x03,+id,0x03,FF,FF,chanOr(p,FF),0xEF]],
+    speed: (v,p) => [[0x7E,FF,0x02,v,0x00,FF,FF,chanOr(p,FF),0xEF]],
+    music: () => [[0x7E,0x00,0x0E,0x00,FF,FF,FF,FF,0xEF]],
+    hint: 'If only part of the lights react (e.g. LEDBLE-02 or dual-output), try Output byte 00, 01 or 02.'
+  },
+  ledble_s: {
+    label: 'LED LAMP · LEDBLE-03/04/05 (7E short)', service: U(0xFFE0), write: U(0xFFE1), wwr: false, auth: true,
+    effects: fxList(EFFECTS.ble),
+    power: on => [[0x7E,0x04,on?1:0,FF,FF,FF,FF,FF,0xEF]],
+    color: (r,g,b) => [[0x7E,0x05,r,g,b,0x00,FF,FF,0xEF]],
+    bright: v => [[0x7E,0x01,v,0x00,FF,FF,FF,FF,0xEF]],
+    effect: id => [[0x7E,0x03,+id,0x00,FF,FF,FF,FF,0xEF]],
+    speed: v => [[0x7E,0x02,v,0x00,FF,FF,FF,FF,0xEF]],
+    music: () => [[0x7E,0x09,0x00,0x00,FF,FF,FF,FF,0xEF]],
+  },
+  leddmx: {
+    label: 'LED LAMP · LEDDMX-00/01/03, LEDCAR-01 (7B FF…BF)', service: U(0xFFE0), write: U(0xFFE1), wwr: false, auth: true,
+    effects: fxList(EFFECTS.dmx),
+    power: on => [[0x7B,FF,0x04,on?1:0,FF,FF,FF,FF,0xBF],[0x7B,0x04,0x04,on?1:0,FF,FF,FF,FF,0xBF]],
+    color: (r,g,b) => [[0x7B,FF,0x07,r,g,b,0x00,FF,0xBF]],
+    bright: v => [[0x7B,FF,0x01,Math.floor(v*32/100),v,0x00,FF,FF,0xBF]],
+    effect: id => [[0x7B,FF,0x03,+id,FF,FF,FF,FF,0xBF]],
+    speed: v => [[0x7B,FF,0x02,v,FF,0x00,FF,FF,0xBF]],
+    music: () => [[0x7B,FF,0x0B,0x01,0x00,FF,FF,FF,0xBF]],
+    hint: 'Power sends both on-frame variants used in the app. Effect ids 1 to 210 come from the LED LAMP table, and 255 is AUTO.'
+  },
+  leddmx_s: {
+    label: 'LED LAMP · LEDDMX-02/04/05/06, LEDCAR-02 (7B short)', service: U(0xFFE0), write: U(0xFFE1), wwr: false, auth: true,
+    effects: fxList(EFFECTS.dmx),
+    power: on => [[0x7B,0x04,on?1:0,FF,FF,FF,FF,FF,0xBF]],
+    color: (r,g,b) => [[0x7B,0x07,r,g,b,0x00,FF,FF,0xBF]],
+    bright: v => [[0x7B,0x01,v,0x00,FF,FF,FF,FF,0xBF]],
+    effect: id => [[0x7B,0x03,+id,FF,FF,FF,FF,FF,0xBF]],
+    speed: v => [[0x7B,0x02,v,0x00,FF,FF,FF,FF,0xBF]],
+    music: () => [[0x7B,0x0B,0x01,FF,FF,FF,FF,FF,0xBF]],
+  },
+  elk: {
+    label: 'FFF0/FFF3 · ELK-BLEDOM style (Colourful LED candidate)', service: U(0xFFF0), write: U(0xFFF3), wwr: true,
+    effects: fxList(EFFECTS.elk),
+    power: on => on ? [[0x7E,0x04,0x04,0x01,0x00,0x01,FF,0x00,0xEF],[0x7E,0x00,0x04,0xF0,0x00,0x01,FF,0x00,0xEF]]
+                    : [[0x7E,0x04,0x04,0x00,0x00,0x00,FF,0x00,0xEF],[0x7E,0x00,0x04,0x00,0x00,0x00,FF,0x00,0xEF]],
+    color: (r,g,b) => [[0x7E,0x07,0x05,0x03,r,g,b,0x10,0xEF]],
+    bright: v => [[0x7E,0x04,0x01,v,0x01,FF,FF,0x00,0xEF]],
+    effect: id => [[0x7E,0x05,0x03,+id,0x03,FF,FF,0x00,0xEF]],
+    speed: v => [[0x7E,0x04,0x02,v,FF,FF,FF,0x00,0xEF]],
+    music: () => [[0x7E,0x04,0x07,0x01,FF,FF,FF,0x00,0xEF]],
+    hint: 'The Colourful LED app uses service FFF0, writes on FFF3 and gets notifications on FFF4. I could not recover its exact command bytes, so these are the common ELK-BLEDOM frames, which most FFF0 controllers accept. If nothing reacts, try the Raw hex box and the debug log.'
+  },
+  triones: {
+    label: 'Triones / HappyLighting (FFD5/FFD9)', service: U(0xFFD5), write: U(0xFFD9), wwr: true,
+    effects: Array.from({length:20},(_,i)=>({id:0x25+i,name:`Mode ${0x25+i}`})),
+    power: on => [[0xCC, on?0x23:0x24, 0x33]],
+    color: (r,g,b) => [[0x56,r,g,b,0x00,0xF0,0xAA]],
+    bright: (v,p) => { const k=v/100, [r,g,b]=p.rgb; return [[0x56,Math.round(r*k),Math.round(g*k),Math.round(b*k),0x00,0xF0,0xAA]]; },
+    effect: (id,p) => { p.lastFx=+id; return [[0xBB,+id,clamp(31-p.spdV*0.3,1,31),0x44]]; },
+    speed: (v,p) => [[0xBB,p.lastFx||0x25,clamp(31-v*0.3,1,31),0x44]],
+    music: () => [],
+  },
+};
+const ALL_SERVICES = [...new Set(Object.values(PROTOCOLS).flatMap(p => [p.service])) , U(0xFFE5), U(0xFFF0), U(0x180A),
+  '5833ff01-9b8b-5191-6142-22a4536ef123'];
+
+function detect(name, services){
+  name = (name||'').toUpperCase(); const has = s => services.includes(U(s));
+  if (has(0xFFC0)) return 'findn';
+  if (has(0xFFE0)) {
+    if (/LEDDMX-0[2456]|LEDCAR-02/.test(name)) return 'leddmx_s';
+    if (/LEDDMX|LEDCAR-01/.test(name)) return 'leddmx';
+    if (/LEDBLE-0[345]/.test(name)) return 'ledble_s';
+    return 'ledble';
+  }
+  if (has(0xFFF0)) return 'elk';
+  if (has(0xFFD5)) return 'triones';
+  if (name.includes('CMM')) return 'findn';
+  return null;
+}
+
+// ---------- panel ----------
+const PANELS = [
+  {key:'interior', title:'💡 Interior (ambient)', def:'findn', filters:[{namePrefix:'CMM'},{services:[U(0xFFC0)]}]},
+  {key:'star', title:'🌌 Star lights (LED LAMP)', def:'ledble', filters:[{namePrefix:'LED'},{services:[U(0xFFE0)]}]},
+  {key:'under', title:'🌈 Underglow (Colourful LED)', def:'elk', filters:[{services:[U(0xFFF0)]},{namePrefix:'ELK'},{namePrefix:'MELK'},{namePrefix:'LED'}]},
+];
+const SWATCHES = ['#ff0000','#ff6a00','#ffd000','#00ff40','#00e5ff','#0040ff','#8a2be2','#ff00c8','#ffffff'];
+const hexToRgb = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
+
+class Panel {
+  constructor(cfg){
+    Object.assign(this, cfg); this.dev=null; this.ch=null; this.q=Promise.resolve(); this.rgb=[255,0,64]; this.spdV=50; this.chan='';
+    const el = this.el = document.getElementById('panelTpl').content.firstElementChild.cloneNode(true);
+    const $ = s => el.querySelector(s); this.$ = $;
+    $('.title').textContent = cfg.title;
+    const sel = $('.proto'); Object.entries(PROTOCOLS).forEach(([k,p]) => sel.add(new Option(p.label, k)));
+    sel.value = localStorage.getItem('proto_'+cfg.key) || cfg.def; sel.onchange = () => this.setProto(sel.value, true);
+    this.setProto(sel.value);
+    $('.b-conn').onclick = () => this.connect(false); $('.b-any').onclick = () => this.connect(true); $('.b-disc').onclick = () => this.disconnect();
+    $('.b-on').onclick = () => this.power(true); $('.b-off').onclick = () => this.power(false);
+    $('.color').oninput = e => this.color(hexToRgb(e.target.value));
+    const sw = $('.sw'); SWATCHES.forEach(c => { const b = document.createElement('b'); b.style.background=c; b.onclick=()=>{ $('.color').value=c; this.color(hexToRgb(c)); }; sw.appendChild(b); });
+    $('.bri').oninput = e => { $('.v-bri').textContent = e.target.value; this.bright(+e.target.value); };
+    $('.spd').oninput = e => { $('.v-spd').textContent = e.target.value; this.speed(+e.target.value); };
+    $('.fx').onchange = e => this.effect(e.target.value);
+    $('.b-mic').onclick = () => this.run(this.P.music(this), 'music');
+    $('.chan').onchange = e => this.chan = e.target.value;
+    $('.b-raw').onclick = () => { const s = $('.raw').value.replace(/0x/gi,'').replace(/[^0-9a-f]/gi,''); if (s.length%2) return log('Raw hex needs whole bytes','bad'); this.run([s.match(/../g).map(h=>parseInt(h,16))],'raw'); };
+    document.getElementById('panels').appendChild(el);
+  }
+  setProto(k, manual){
+    this.proto = k; this.P = PROTOCOLS[k]; localStorage.setItem('proto_'+this.key, k);
+    const fx = this.$('.fx'); fx.innerHTML=''; fx.add(new Option('— choose effect —','')); this.P.effects.forEach(e => fx.add(new Option(e.name, e.id)));
+    this.$('.hint').textContent = this.P.hint || '';
+    if (manual) log(`${this.key}: protocol set to ${k}`);
+    if (manual && this.dev && this.dev.gatt.connected) this.bindChar().catch(e => log(`${this.key}: ${e.message}`,'bad'));
+  }
+  status(t, on){ this.$('.status').textContent = t; this.$('.dot').classList.toggle('on', !!on); this.$('.b-disc').disabled = !on; }
+  async connect(any){
+    if (!navigator.bluetooth) return log('Web Bluetooth isn’t available here. Use Chrome on Android over HTTPS or localhost.','bad');
+    try {
+      const opts = any ? {acceptAllDevices:true, optionalServices: ALL_SERVICES} : {filters:this.filters, optionalServices: ALL_SERVICES};
+      log(`${this.key}: opening chooser${any?' (all devices)':''}`);
+      const dev = await navigator.bluetooth.requestDevice(opts);
+      await this.attach(dev);
+    } catch(e){ log(`${this.key}: ${e.name}: ${e.message}`,'bad'); }
+  }
+  async attach(dev){
+    this.dev = dev; localStorage.setItem('dev_'+this.key, dev.id);
+    dev.addEventListener('gattserverdisconnected', () => { this.status(`Disconnected: ${dev.name||dev.id}`); log(`${this.key}: disconnected`,'bad'); });
+    this.status(`Connecting to ${dev.name||'(no name)'}…`);
+    const server = await dev.gatt.connect();
+    let uuids = [];
+    try { uuids = (await server.getPrimaryServices()).map(s => s.uuid); } catch(e){ log(`${this.key}: service list failed: ${e.message}`); }
+    log(`${this.key}: ${dev.name||'(no name)'} services: ${uuids.join(', ')||'none visible'}`);
+    const d = detect(dev.name, uuids);
+    if (d && d !== this.proto){ log(`${this.key}: auto-detected ${d}`,'ok'); this.$('.proto').value = d; this.setProto(d); }
+    await this.bindChar();
+    this.status(`Connected: ${dev.name||dev.id} · ${this.proto}`, true);
+    if (this.P.auth && /LEDBLE|LEDDMX|LEDCAR/i.test(dev.name||'')) {
+      await sleep(300); const n = new Date(), wk=[7,1,2,3,4,5,6][n.getDay()];
+      await this.send([0x2A,0x02,0xA1,0x23,0x45,0x67,(wk<<5)|n.getHours(),n.getMinutes(),0xAF]);
+      await this.send([0x2A,0x05,FF,FF,FF,FF,FF,FF,0xAF]);
+    }
+    if (this.P.init) await this.P.init(this);
+  }
+  async bindChar(){
+    const server = this.dev.gatt; const svc = await server.getPrimaryService(this.P.service);
+    this.ch = await svc.getCharacteristic(this.P.write);
+    log(`${this.key}: write char ${this.P.write.slice(4,8)} ready (${this.ch.properties.writeWithoutResponse?'wwr ':''}${this.ch.properties.write?'write':''})`);
+    const nu = this.P.notify || (this.ch.properties.notify ? this.P.write : null);
+    try {
+      const nc = this.P.notify ? await svc.getCharacteristic(this.P.notify) : (this.ch.properties.notify ? this.ch : null);
+      if (nc){ await nc.startNotifications(); nc.addEventListener('characteristicvaluechanged', e => log(`${this.key} RX: ${hex(new Uint8Array(e.target.value.buffer))}`)); }
+    } catch(e){ log(`${this.key}: notify ${nu||''} unavailable (${e.message})`); }
+  }
+  disconnect(){ if (this.dev && this.dev.gatt.connected) this.dev.gatt.disconnect(); this.status('Not connected'); }
+  send(bytes){
+    const job = async () => {
+      if (!this.ch) throw new Error('not connected');
+      const buf = new Uint8Array(bytes.map(b => b & 0xFF));
+      if (document.getElementById('logTx').checked) log(`${this.key} TX: ${hex(buf)}`);
+      const wwr = this.P.wwr ? this.ch.properties.writeWithoutResponse : !this.ch.properties.write;
+      if (wwr && this.ch.writeValueWithoutResponse) await this.ch.writeValueWithoutResponse(buf);
+      else if (this.ch.writeValueWithResponse) await this.ch.writeValueWithResponse(buf);
+      else await this.ch.writeValue(buf);
+      await sleep(25);
+    };
+    this.q = this.q.then(job, job); return this.q.catch(e => log(`${this.key}: write failed: ${e.message}`,'bad'));
+  }
+  run(frames, what){ if (!this.ch) return; frames.forEach(f => this.send(f)); }
+  throttled(name, fn, ms){ clearTimeout(this['t_'+name]); this['t_'+name] = setTimeout(fn, ms); }
+  power(on){ this.run(this.P.power(on, this)); }
+  color(rgb){ this.rgb = rgb; this.throttled('c', () => this.run(this.P.color(...rgb, this)), 60); }
+  bright(v){ this.throttled('b', () => this.run(this.P.bright(clamp(v,0,100), this)), 60); }
+  speed(v){ this.spdV = v; this.throttled('s', () => this.run(this.P.speed(clamp(v,0,100), this)), 80); }
+  effect(id){ if (id === '') return; this.run(this.P.effect(id, this)); }
+}
+const panels = PANELS.map(c => new Panel(c));
+
+// ---------- master ----------
+const mColor = document.getElementById('mColor'), mBri = document.getElementById('mBri');
+const live = () => panels.filter(p => p.ch && p.dev && p.dev.gatt.connected);
+document.getElementById('mOn').onclick = () => live().forEach(p => p.power(true));
+document.getElementById('mOff').onclick = () => live().forEach(p => p.power(false));
+mColor.oninput = () => { const c = hexToRgb(mColor.value); panels.forEach(p => p.$('.color').value = mColor.value); live().forEach(p => p.color(c)); };
+SWATCHES.forEach(c => { const b = document.createElement('b'); b.style.background=c; b.onclick=()=>{ mColor.value=c; mColor.oninput(); }; document.getElementById('mSw').appendChild(b); });
+mBri.oninput = () => { document.getElementById('mBriV').textContent = mBri.value; panels.forEach(p => { p.$('.bri').value = mBri.value; p.$('.v-bri').textContent = mBri.value; }); live().forEach(p => p.bright(+mBri.value)); };
+document.getElementById('mConnect').onclick = async () => {
+  // Chrome lets a page reconnect without a chooser only to devices it was already allowed (getDevices).
+  if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+    const known = await navigator.bluetooth.getDevices(); let any = false;
+    for (const p of panels) {
+      if (p.dev && p.dev.gatt.connected) continue;
+      const id = localStorage.getItem('dev_'+p.key); const dev = known.find(d => d.id === id);
+      if (!dev) continue; any = true;
+      try { log(`${p.key}: reconnecting ${dev.name||dev.id}`); await p.attach(dev); } catch(e){ log(`${p.key}: reconnect failed: ${e.message}`,'bad'); }
+    }
+    if (any) return;
+  }
+  // Otherwise: Chrome allows only one chooser per tap, so open the first unconnected panel's chooser.
+  const p = panels.find(p => !(p.dev && p.dev.gatt.connected));
+  if (p) { log('Connect all: opening the chooser for the next unconnected light. Tap again for the next one.'); p.connect(false); }
+  else log('All lights connected','ok');
+};
+
+// ---------- environment check ----------
+(() => { const s = document.getElementById('support'); const m = [];
+  if (!window.isSecureContext) m.push('This page isn’t on HTTPS or localhost, so Bluetooth is blocked.');
+  if (!navigator.bluetooth) m.push('This browser doesn’t support Web Bluetooth. Use Chrome on Android with Bluetooth and Location on.');
+  if (m.length){ s.hidden = false; s.textContent = m.join(' '); }
+  log(`Ready. secureContext=${window.isSecureContext} webBluetooth=${!!navigator.bluetooth} getDevices=${!!(navigator.bluetooth&&navigator.bluetooth.getDevices)}`);
+})();
+</script>
+</body>
+</html>

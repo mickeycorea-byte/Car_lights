@@ -26,11 +26,12 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
 .val{min-width:34px;text-align:right;color:var(--mut);font-variant-numeric:tabular-nums}
 #log{background:#07090d;border:1px solid var(--line);border-radius:12px;height:220px;overflow:auto;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;padding:8px;white-space:pre-wrap}
 .warn{background:#2a1d0b;border:1px solid #5a3d12;color:#ffd08a;border-radius:12px;padding:10px;font-size:13px}
+.big{font-size:17px;padding:14px;width:100%}.tips{margin:6px 0}.tips ol{margin:4px 0 0 18px;padding:0}
 .ok{color:var(--ok)}.bad{color:var(--bad)}
 </style>
 </head>
 <body>
-<header><h1>🚗 Car Lights</h1><p>Interior · Star lights · Underglow over Web Bluetooth</p></header>
+<header><h1>🚗 Car Lights</h1><p>Interior · Star lights 1 &amp; 2 · Underglow over Web Bluetooth</p></header>
 <main>
 <div id="support" class="warn" hidden></div>
 <div class="warn">Before connecting, <b>force-stop</b> “Dynamic ambient lighting”, “LED LAMP” and “Colourful LED” (Settings → Apps → Force stop). Each controller accepts one connection at a time. Works in Chrome on Android, but not on iPhone or iPad.</div>
@@ -55,7 +56,8 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
 <section class="card panel">
   <h2><span class="dot"></span><span class="title"></span></h2>
   <div class="sub status">Not connected</div>
-  <div class="row"><button class="pri grow b-conn">Connect</button><button class="b-any">Show all devices</button><button class="b-disc" disabled>Disconnect</button></div>
+  <div class="row"><button class="pri grow b-conn">Connect</button><button class="b-pick">Pick device</button><button class="b-any">Show all devices</button><button class="b-disc" disabled>Disconnect</button></div>
+  <div class="tips warn" hidden></div>
   <div class="row"><label>Protocol</label><select class="proto"></select></div>
   <div class="row"><label>Power</label><button class="grow b-on">On</button><button class="grow b-off">Off</button></div>
   <div class="row"><label>Color</label><input type="color" class="color" value="#ff0040"><div class="sw"></div></div>
@@ -63,8 +65,9 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
   <div class="row"><label>Effect</label><select class="fx"></select></div>
   <div class="row"><label>Speed</label><input type="range" class="spd" min="0" max="100" value="50"><span class="val v-spd">50</span></div>
   <div class="row"><label>Music</label><button class="grow b-mic">Mic / music mode</button></div>
+  <div class="row probe-row" hidden><label>Probe</label><button class="grow b-probe">Probe: try ON + red for each format</button><button class="b-probe-stop">Stop</button></div>
   <details><summary>Advanced</summary>
-    <div class="row"><label>Output byte</label><select class="chan"><option value="">default</option><option value="0">00 (all)</option><option value="1">01 (LED1)</option><option value="2">02 (LED2)</option><option value="255">FF</option></select></div>
+    <div class="row"><label>Output / ID byte</label><select class="chan"><option value="">default</option><option value="0">00 (all / ID 0)</option><option value="1">01 (LED1)</option><option value="2">02 (LED2)</option><option value="255">FF</option></select></div>
     <div class="row"><label>Raw hex</label><input type="text" class="raw" placeholder="7E FF 04 01 00 FF FF 00 EF"><button class="b-raw">Send</button></div>
     <div class="sub hint"></div>
   </details>
@@ -163,6 +166,17 @@ const PROTOCOLS = {
     music: () => [[0x7E,0x04,0x07,0x01,FF,FF,FF,0x00,0xEF]],
     hint: 'The Colourful LED app uses service FFF0, writes on FFF3 and gets notifications on FFF4. I could not recover its exact command bytes, so these are the common ELK-BLEDOM frames, which most FFF0 controllers accept. If nothing reacts, try the Raw hex box and the debug log.'
   },
+  samying: {
+    label: 'Samying “colourful-DMX” (FFF0/FFF3, 11 EE…)', service: U(0xFFF0), write: U(0xFFF3), notify: U(0xFFF4), wwr: true,
+    effects: Array.from({length:40},(_,i)=>({id:i+1,name:`Mode ${i+1}`})),
+    power: (on,p) => [sy(p,0x0B,[on?1:0,0])],
+    color: (r,g,b,p) => [sy(p,0x02,[r,g,b,clamp(p.briV,1,100)])],
+    bright: (v,p) => { p.briV=v; const [r,g,b]=p.rgb; return [sy(p,0x02,[r,g,b,clamp(v,1,100)])]; },
+    effect: (id,p) => [sy(p,0x03,[+id,0])],
+    speed: (v,p) => [sy(p,0x08,[v,0xFF-v])],
+    music: () => [],
+    hint: 'Frames from Colourful LED 1.3.0 (arm64), decoded by hand: 11 EE seq 00 len cmd id … sum. Power = cmd 0B, color + brightness = cmd 02, mode = cmd 03. Speed (cmd 08) is a guess. If nothing reacts, set “Output / ID byte” to 01 and try again, or use Probe.'
+  },
   triones: {
     label: 'Triones / HappyLighting (FFD5/FFD9)', service: U(0xFFD5), write: U(0xFFD9), wwr: true,
     effects: Array.from({length:20},(_,i)=>({id:0x25+i,name:`Mode ${0x25+i}`})),
@@ -175,7 +189,7 @@ const PROTOCOLS = {
   },
 };
 const ALL_SERVICES = [...new Set(Object.values(PROTOCOLS).flatMap(p => [p.service])) , U(0xFFE5), U(0xFFF0), U(0x180A),
-  '5833ff01-9b8b-5191-6142-22a4536ef123'];
+  '5833ff01-9b8b-5191-6142-22a4536ef123', U(0xAE00), U(0xAE30), U(0xFFB0), U(0xFF00), U(0xFFD0), U(0xFEE9), U(0x1910), U(0x180F)];
 
 function detect(name, services){
   name = (name||'').toUpperCase(); const has = s => services.includes(U(s));
@@ -186,17 +200,41 @@ function detect(name, services){
     if (/LEDBLE-0[345]/.test(name)) return 'ledble_s';
     return 'ledble';
   }
+  if (/COLOURFUL|COLORFUL/.test(name)) return 'samying';
   if (has(0xFFF0)) return 'elk';
   if (has(0xFFD5)) return 'triones';
   if (name.includes('CMM')) return 'findn';
   return null;
 }
 
+// Samying / Colourful LED (com.smadom.ssch.colourful): 11 EE SEQ 00 LEN CMD ID data.. SUM, SUM = sum(bytes[0..n-2]) & 0xFF
+function sy(p, cmd, data){ p.seq = ((p.seq||0) % 255) + 1; const id = chanOr(p,0);
+  const f = [0x11,0xEE,p.seq,0x00,0,cmd,id,...data]; f[4] = f.length + 1; let s=0; f.forEach(b=>s+=b); f.push(s & 0xFF); return f; }
+const sum8 = a => a.reduce((s,b)=>s+b,0) & 0xFF;
+function probeSteps(p){
+  const S = (id, cmd, data) => { const q={chan:String(id),seq:p.seq}; const f=sy(q,cmd,data); p.seq=q.seq; return f; };
+  return [
+    ['Samying ID 0: power ON', () => [S(0,0x0B,[1,0])]],
+    ['Samying ID 0: red 100%', () => [S(0,0x02,[255,0,0,100])]],
+    ['Samying ID 1: power ON', () => [S(1,0x0B,[1,0])]],
+    ['Samying ID 1: red 100%', () => [S(1,0x02,[255,0,0,100])]],
+    ['Samying ID 0: power value 0 (in case ON/OFF is inverted)', () => [S(0,0x0B,[0,0])]],
+    ['Samying ID 0: green 100%', () => [S(0,0x02,[0,255,0,100])]],
+    ['ELK-BLEDOM: ON + red', () => [[0x7E,0x00,0x04,0xF0,0x00,0x01,FF,0x00,0xEF],[0x7E,0x07,0x05,0x03,255,0,0,0x10,0xEF]]],
+    ['LED LAMP 7E: ON + red', () => [[0x7E,FF,0x04,1,0,FF,FF,0,0xEF],[0x7E,FF,0x05,0x03,255,0,0,FF,0xEF]]],
+    ['LED LAMP DMX 7B: ON + red', () => [[0x7B,FF,0x04,1,FF,FF,FF,FF,0xBF],[0x7B,FF,0x07,255,0,0,0,FF,0xBF]]],
+    ['Triones 56/CC: ON + red', () => [[0xCC,0x23,0x33],[0x56,255,0,0,0,0xF0,0xAA]]],
+    ['Zengge 71/31: ON + red', () => { const a=[0x71,0x23,0x0F], b=[0x31,255,0,0,0,0,0xF0,0x0F]; return [[...a,sum8(a)],[...b,sum8(b)]]; }],
+  ];
+}
+
 // ---------- panel ----------
 const PANELS = [
   {key:'interior', title:'💡 Interior (ambient)', def:'findn', filters:[{namePrefix:'CMM'},{services:[U(0xFFC0)]}]},
-  {key:'star', title:'🌌 Star lights (LED LAMP)', def:'ledble', filters:[{namePrefix:'LED'},{services:[U(0xFFE0)]}]},
-  {key:'under', title:'🌈 Underglow (Colourful LED)', def:'elk', filters:[{services:[U(0xFFF0)]},{namePrefix:'ELK'},{namePrefix:'MELK'},{namePrefix:'LED'}]},
+  {key:'star1', title:'🌌 Star lights 1', def:'ledble', filters:[{namePrefix:'LEDBLE'},{namePrefix:'LEDDMX'},{namePrefix:'LEDCAR'},{namePrefix:'LED'},{services:[U(0xFFE0)]}]},
+  {key:'star2', title:'🌌 Star lights 2', def:'ledble', filters:[{namePrefix:'LEDBLE'},{namePrefix:'LEDDMX'},{namePrefix:'LEDCAR'},{namePrefix:'LED'},{services:[U(0xFFE0)]}]},
+  {key:'under', title:'🌈 Underglow (Colourful LED)', def:'samying', under:true,
+   filters:['colourful','Colourful','COLOURFUL','colorful','Colorful','COLORFUL'].map(n=>({namePrefix:n}))},
 ];
 const SWATCHES = ['#ff0000','#ff6a00','#ffd000','#00ff40','#00e5ff','#0040ff','#8a2be2','#ff00c8','#ffffff'];
 const hexToRgb = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
@@ -206,11 +244,20 @@ class Panel {
     Object.assign(this, cfg); this.dev=null; this.ch=null; this.q=Promise.resolve(); this.rgb=[255,0,64]; this.spdV=50; this.chan='';
     const el = this.el = document.getElementById('panelTpl').content.firstElementChild.cloneNode(true);
     const $ = s => el.querySelector(s); this.$ = $;
-    $('.title').textContent = cfg.title;
+    $('.title').textContent = cfg.title; this.briV = 100;
+    const saved = localStorage.getItem('devname_'+cfg.key); if (saved) $('.title').textContent = `${cfg.title} · ${saved}`;
+    if (cfg.under) {
+      const tips = $('.tips'); tips.hidden = false;
+      tips.innerHTML = '<b>Underglow not connecting?</b><ol><li>Force-stop the <b>Colourful LED</b> app (Settings → Apps → Colourful LED → Force stop). It holds the only connection.</li><li>Check Android Settings → Bluetooth. If “colourful-DMX” is listed as connected or paired, disconnect or forget it.</li><li>Turn the underglow controller off and on (or turn the car off and on), wait 5 s, then tap Connect.</li><li>If it isn’t in the list, tap <b>Show all devices</b> and pick “colourful-DMX”.</li><li>If it connects but the lights don’t react, tap <b>Probe</b> and note which step changes the lights. Then copy the debug log.</li></ol>';
+      const any = $('.b-any'); any.textContent = '🔍 Show all devices (pick “colourful-DMX”)'; any.classList.add('pri','big');
+      any.parentNode.parentNode.insertBefore(Object.assign(document.createElement('div'),{className:'row'}), any.parentNode.nextSibling).appendChild(any);
+      $('.probe-row').hidden = false;
+    }
     const sel = $('.proto'); Object.entries(PROTOCOLS).forEach(([k,p]) => sel.add(new Option(p.label, k)));
     sel.value = localStorage.getItem('proto_'+cfg.key) || cfg.def; sel.onchange = () => this.setProto(sel.value, true);
     this.setProto(sel.value);
-    $('.b-conn').onclick = () => this.connect(false); $('.b-any').onclick = () => this.connect(true); $('.b-disc').onclick = () => this.disconnect();
+    $('.b-conn').onclick = () => this.connect(false, true); $('.b-pick').onclick = () => this.connect(false, false); $('.b-any').onclick = () => this.connect(true, false);
+    $('.b-probe').onclick = () => this.probe(); $('.b-probe-stop').onclick = () => { this.probing = false; }; $('.b-disc').onclick = () => this.disconnect();
     $('.b-on').onclick = () => this.power(true); $('.b-off').onclick = () => this.power(false);
     $('.color').oninput = e => this.color(hexToRgb(e.target.value));
     const sw = $('.sw'); SWATCHES.forEach(c => { const b = document.createElement('b'); b.style.background=c; b.onclick=()=>{ $('.color').value=c; this.color(hexToRgb(c)); }; sw.appendChild(b); });
@@ -230,23 +277,51 @@ class Panel {
     if (manual && this.dev && this.dev.gatt.connected) this.bindChar().catch(e => log(`${this.key}: ${e.message}`,'bad'));
   }
   status(t, on){ this.$('.status').textContent = t; this.$('.dot').classList.toggle('on', !!on); this.$('.b-disc').disabled = !on; }
-  async connect(any){
+  async savedDevice(){
+    const id = localStorage.getItem('dev_'+this.key);
+    if (!id || !navigator.bluetooth.getDevices) return null;
+    try { return (await navigator.bluetooth.getDevices()).find(d => d.id === id) || null; } catch(e){ return null; }
+  }
+  async connect(any, trySaved){
     if (!navigator.bluetooth) return log('Web Bluetooth isn’t available here. Use Chrome on Android over HTTPS or localhost.','bad');
+    if (this.dev && this.dev.gatt.connected) return log(`${this.key}: already connected to ${this.dev.name||this.dev.id}`);
     try {
+      if (trySaved) {
+        const sd = await this.savedDevice();
+        if (sd) { log(`${this.key}: reconnecting saved device ${sd.name||sd.id}`); try { return await this.attach(sd); } catch(e){ log(`${this.key}: saved device failed (${e.message}). Tap “Pick device” to choose again.`,'bad'); return; } }
+      }
       const opts = any ? {acceptAllDevices:true, optionalServices: ALL_SERVICES} : {filters:this.filters, optionalServices: ALL_SERVICES};
       log(`${this.key}: opening chooser${any?' (all devices)':''}`);
       const dev = await navigator.bluetooth.requestDevice(opts);
+      const other = panels.find(p => p !== this && p.dev && p.dev.id === dev.id && p.dev.gatt.connected);
+      if (other) return log(`${this.key}: ${dev.name||dev.id} is already used by ${other.key}. Pick the other one.`,'bad');
       await this.attach(dev);
-    } catch(e){ log(`${this.key}: ${e.name}: ${e.message}`,'bad'); }
+    } catch(e){ log(`${this.key}: ${e.name}: ${e.message}`,'bad'); this.status('Not connected'); }
+  }
+  async gattConnect(dev){
+    let lastErr;
+    for (let i = 1; i <= 3; i++) {
+      try { this.status(`Connecting to ${dev.name||'(no name)'}… (try ${i}/3)`); const s = await dev.gatt.connect(); await sleep(250); return s; }
+      catch(e){ lastErr = e; log(`${this.key}: GATT connect try ${i} failed: ${e.name}: ${e.message}`,'bad'); try{ dev.gatt.disconnect(); }catch(_){} await sleep(1000 * i); }
+    }
+    throw lastErr;
   }
   async attach(dev){
-    this.dev = dev; localStorage.setItem('dev_'+this.key, dev.id);
-    dev.addEventListener('gattserverdisconnected', () => { this.status(`Disconnected: ${dev.name||dev.id}`); log(`${this.key}: disconnected`,'bad'); });
-    this.status(`Connecting to ${dev.name||'(no name)'}…`);
-    const server = await dev.gatt.connect();
-    let uuids = [];
-    try { uuids = (await server.getPrimaryServices()).map(s => s.uuid); } catch(e){ log(`${this.key}: service list failed: ${e.message}`); }
-    log(`${this.key}: ${dev.name||'(no name)'} services: ${uuids.join(', ')||'none visible'}`);
+    this.dev = dev; this.seq = 0; localStorage.setItem('dev_'+this.key, dev.id);
+    if (dev.name) { localStorage.setItem('devname_'+this.key, dev.name); this.$('.title').textContent = `${this.title} · ${dev.name}`; }
+    if (!dev._clBound) { dev._clBound = true; dev.addEventListener('gattserverdisconnected', () => { if (this.dev === dev) { this.ch = null; this.status(`Disconnected: ${dev.name||dev.id}`); log(`${this.key}: disconnected`,'bad'); } }); }
+    const server = await this.gattConnect(dev);
+    let services = [];
+    try { services = await server.getPrimaryServices(); } catch(e){ log(`${this.key}: service list failed: ${e.message}`); }
+    this.gattMap = [];
+    log(`${this.key}: ${dev.name||'(no name)'} id=${dev.id} · ${services.length} service(s)`);
+    for (const s of services) {
+      let chars = []; try { chars = await s.getCharacteristics(); } catch(e){ log(`  service ${s.uuid}: characteristics unavailable (${e.message})`); continue; }
+      log(`  service ${s.uuid}`);
+      for (const c of chars) { const pr = c.properties; const fl = ['read','write','writeWithoutResponse','notify','indicate'].filter(k => pr[k]).join(',');
+        log(`    char ${c.uuid} [${fl}]`); this.gattMap.push({s, c}); }
+    }
+    const uuids = services.map(s => s.uuid);
     const d = detect(dev.name, uuids);
     if (d && d !== this.proto){ log(`${this.key}: auto-detected ${d}`,'ok'); this.$('.proto').value = d; this.setProto(d); }
     await this.bindChar();
@@ -259,14 +334,34 @@ class Panel {
     if (this.P.init) await this.P.init(this);
   }
   async bindChar(){
-    const server = this.dev.gatt; const svc = await server.getPrimaryService(this.P.service);
-    this.ch = await svc.getCharacteristic(this.P.write);
-    log(`${this.key}: write char ${this.P.write.slice(4,8)} ready (${this.ch.properties.writeWithoutResponse?'wwr ':''}${this.ch.properties.write?'write':''})`);
-    const nu = this.P.notify || (this.ch.properties.notify ? this.P.write : null);
-    try {
-      const nc = this.P.notify ? await svc.getCharacteristic(this.P.notify) : (this.ch.properties.notify ? this.ch : null);
-      if (nc){ await nc.startNotifications(); nc.addEventListener('characteristicvaluechanged', e => log(`${this.key} RX: ${hex(new Uint8Array(e.target.value.buffer))}`)); }
-    } catch(e){ log(`${this.key}: notify ${nu||''} unavailable (${e.message})`); }
+    const map = this.gattMap || [];
+    let svc = null, ch = null;
+    try { svc = await this.dev.gatt.getPrimaryService(this.P.service); ch = await svc.getCharacteristic(this.P.write); }
+    catch(e){
+      const w = map.find(m => m.c.properties.writeWithoutResponse) || map.find(m => m.c.properties.write);
+      if (!w) throw new Error(`no ${this.P.write.slice(4,8)} and no writable characteristic found`);
+      svc = w.s; ch = w.c; log(`${this.key}: ${this.P.write.slice(4,8)} not found, so using writable char ${ch.uuid}`,'bad');
+    }
+    this.ch = ch;
+    log(`${this.key}: write char ${ch.uuid.slice(4,8)} ready (${ch.properties.writeWithoutResponse?'wwr ':''}${ch.properties.write?'write':''})`);
+    // subscribe to every notify/indicate characteristic (e.g. FFF4) and log RX
+    for (const m of map.length ? map : [{s:svc,c:ch}]) {
+      const pr = m.c.properties; if (!(pr.notify || pr.indicate) || m.c._rx) continue;
+      try { await m.c.startNotifications(); m.c._rx = true; const u = m.c.uuid.slice(4,8);
+        m.c.addEventListener('characteristicvaluechanged', e => log(`${this.key} RX ${u}: ${hex(new Uint8Array(e.target.value.buffer))}`));
+        log(`${this.key}: notifications on ${u}`);
+      } catch(e){ log(`${this.key}: notify ${m.c.uuid.slice(4,8)} unavailable (${e.message})`); }
+    }
+  }
+  async probe(){
+    if (!this.ch) return log(`${this.key}: connect first`,'bad');
+    const steps = probeSteps(this); this.probing = true;
+    log(`${this.key}: PROBE start. Watch the lights and note the step number that changes them.`,'ok');
+    for (let i = 0; i < steps.length && this.probing; i++) {
+      log(`${this.key}: PROBE step ${i+1}/${steps.length}: ${steps[i][0]}`,'ok');
+      steps[i][1]().forEach(f => this.send(f)); await sleep(1500);
+    }
+    log(`${this.key}: PROBE ${this.probing ? 'finished' : 'stopped'}`,'ok'); this.probing = false;
   }
   disconnect(){ if (this.dev && this.dev.gatt.connected) this.dev.gatt.disconnect(); this.status('Not connected'); }
   send(bytes){
@@ -286,7 +381,7 @@ class Panel {
   throttled(name, fn, ms){ clearTimeout(this['t_'+name]); this['t_'+name] = setTimeout(fn, ms); }
   power(on){ this.run(this.P.power(on, this)); }
   color(rgb){ this.rgb = rgb; this.throttled('c', () => this.run(this.P.color(...rgb, this)), 60); }
-  bright(v){ this.throttled('b', () => this.run(this.P.bright(clamp(v,0,100), this)), 60); }
+  bright(v){ this.briV = v; this.throttled('b', () => this.run(this.P.bright(clamp(v,0,100), this)), 60); }
   speed(v){ this.spdV = v; this.throttled('s', () => this.run(this.P.speed(clamp(v,0,100), this)), 80); }
   effect(id){ if (id === '') return; this.run(this.P.effect(id, this)); }
 }
@@ -301,20 +396,17 @@ mColor.oninput = () => { const c = hexToRgb(mColor.value); panels.forEach(p => p
 SWATCHES.forEach(c => { const b = document.createElement('b'); b.style.background=c; b.onclick=()=>{ mColor.value=c; mColor.oninput(); }; document.getElementById('mSw').appendChild(b); });
 mBri.oninput = () => { document.getElementById('mBriV').textContent = mBri.value; panels.forEach(p => { p.$('.bri').value = mBri.value; p.$('.v-bri').textContent = mBri.value; }); live().forEach(p => p.bright(+mBri.value)); };
 document.getElementById('mConnect').onclick = async () => {
-  // Chrome lets a page reconnect without a chooser only to devices it was already allowed (getDevices).
-  if (navigator.bluetooth && navigator.bluetooth.getDevices) {
-    const known = await navigator.bluetooth.getDevices(); let any = false;
-    for (const p of panels) {
-      if (p.dev && p.dev.gatt.connected) continue;
-      const id = localStorage.getItem('dev_'+p.key); const dev = known.find(d => d.id === id);
-      if (!dev) continue; any = true;
-      try { log(`${p.key}: reconnecting ${dev.name||dev.id}`); await p.attach(dev); } catch(e){ log(`${p.key}: reconnect failed: ${e.message}`,'bad'); }
-    }
-    if (any) return;
+  // Chrome reconnects without a chooser only to devices it already allowed (getDevices).
+  let any = false;
+  for (const p of panels) {
+    if (p.dev && p.dev.gatt.connected) continue;
+    const dev = await p.savedDevice(); if (!dev) continue; any = true;
+    try { log(`${p.key}: reconnecting ${dev.name||dev.id}`); await p.attach(dev); } catch(e){ log(`${p.key}: reconnect failed: ${e.message}`,'bad'); }
   }
-  // Otherwise: Chrome allows only one chooser per tap, so open the first unconnected panel's chooser.
+  if (any) return;
+  // Otherwise Chrome allows only one chooser per tap, so open the next unconnected panel's chooser.
   const p = panels.find(p => !(p.dev && p.dev.gatt.connected));
-  if (p) { log('Connect all: opening the chooser for the next unconnected light. Tap again for the next one.'); p.connect(false); }
+  if (p) { log(`Connect all: choose the device for ${p.title}. Tap again for the next one.`); p.connect(false, false); }
   else log('All lights connected','ok');
 };
 

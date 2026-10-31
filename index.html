@@ -40,12 +40,24 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
 .badge.off{background:#123826;color:#9ff0c6}.badge.off i{background:#2ecc71}
 .badge.stale{opacity:.8;font-weight:600}.badge small{font-weight:500;opacity:.85}
 .note{color:var(--mut);font-size:12px;margin:6px 0 0}
+#scenes{border-color:#7a3d00;background:linear-gradient(160deg,#1f1405,#1a1026)}
+.scene{font-size:18px;font-weight:800;padding:16px;flex:1;min-width:150px}
+#scTrunk{background:#ff6a00;border-color:#ff8a30;color:#1a0800}#scGreen{background:#5b1f9e;border-color:#7d3fd0;color:#d9ffe0}
+.syncrow{background:#10192b;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.ver{opacity:.6;font-size:11px}
 </style>
 </head>
 <body>
 <div id="banner" class="unk"><span class="bt">Light status unknown<span class="bl"></span></span><button id="allOff">ALL OFF</button></div>
-<header><h1>🚗 Car Lights</h1><p>Interior · Star lights 1 &amp; 2 · Underglow over Web Bluetooth</p></header>
+<header><h1>🚗 Car Lights</h1><p>Interior + 4 doors · Star lights 1 &amp; 2 · Underglow over Web Bluetooth <span class="ver" id="ver"></span></p></header>
 <main>
+<section class="card" id="scenes">
+  <h2>🎬 Scenes</h2>
+  <div class="sub">Sends a look to every connected light, one after another. Lights that aren’t connected are skipped.</div>
+  <div class="row"><button class="scene" id="scTrunk">🎃 Trunk or Treat</button><button class="scene" id="scGreen">👻 Spooky green</button></div>
+  <div class="row"><button class="pri grow" id="scConnect">Connect all</button></div>
+  <div class="note">🎃 Trunk or Treat: interior and doors orange, star lights a slow purple fade, underglow solid purple. 👻 Spooky green: interior, doors and underglow green, star lights a slow purple fade. Tap <b>Connect all</b> first. It reconnects lights this phone already knows, or opens the chooser for the next one.</div>
+</section>
 <div id="support" class="warn" hidden></div>
 <div class="warn">Before connecting, <b>force-stop</b> “Dynamic ambient lighting”, “LED LAMP” and “Colourful LED” (Settings → Apps → Force stop). Each controller accepts one connection at a time. Works in Chrome on Android, but not on iPhone or iPad.</div>
 
@@ -74,7 +86,7 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
   <div class="row"><button class="pri grow b-conn">Connect</button><button class="b-pick">Pick device</button><button class="b-any">Show all devices</button><button class="b-disc" disabled>Disconnect</button></div>
   <div class="tips warn" hidden></div>
   <div class="row"><label>Protocol</label><select class="proto"></select></div>
-  <div class="row"><label>Power</label><button class="grow b-on">On</button><button class="grow b-off">Off</button></div>
+  <div class="row"><label>Power</label><button class="grow b-on">On</button><button class="grow b-off">Off</button><button class="b-ident" hidden>Blink to identify</button></div>
   <div class="row"><label>Color</label><input type="color" class="color" value="#ff0040"><div class="sw"></div></div>
   <div class="row"><label>Brightness</label><input type="range" class="bri" min="0" max="100" value="100"><span class="val v-bri">100</span></div>
   <div class="row"><label>Effect</label><select class="fx"></select></div>
@@ -82,7 +94,7 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
   <div class="row"><label>Music</label><button class="grow b-mic">Mic / music mode</button></div>
   <div class="row probe-row" hidden><label>Probe</label><button class="grow b-probe">Probe: try ON + red for each format</button><button class="b-probe-stop">Stop</button></div>
   <details><summary>Advanced</summary>
-    <div class="row"><label>Output / ID byte</label><select class="chan"><option value="">default</option><option value="0">00 (all / ID 0)</option><option value="1">01 (LED1)</option><option value="2">02 (LED2)</option><option value="255">FF</option></select></div>
+    <div class="row"><label>Output / ID byte</label><select class="chan" autocomplete="off"><option value="">default</option><option value="0">00 (all / ID 0)</option><option value="1">01 (LED1)</option><option value="2">02 (LED2)</option><option value="255">FF</option></select></div>
     <div class="row"><label>Raw hex</label><input type="text" class="raw" placeholder="7E FF 04 01 00 FF FF 00 EF"><button class="b-raw">Send</button></div>
     <div class="sub hint"></div>
   </details>
@@ -91,6 +103,8 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
 
 <script>
 "use strict";
+const APP_VERSION = 'v4 · 2026-10-31 (doors + scenes)';
+document.getElementById('ver').textContent = APP_VERSION;
 const EFFECTS = {"elk":[[128,"Static Red"],[129,"Static Blue"],[130,"Static Green"],[131,"Static Cyan"],[132,"Static Yellow"],[133,"Static Purple"],[134,"Static White"],[135,"Three Color Jumping Change"],[136,"Seven Color Jumping Change"],[137,"Three Color Cross Fade"],[138,"Seven Color Cross Fade"],[139,"Red Gradual Change"],[140,"Green Gradual Change"],[141,"Blue Gradual Change"],[142,"Yellow Gradual Change"],[143,"Cyan Gradual Change"],[144,"Purple Gradual Change"],[145,"White Gradual Change"],[146,"Red Green Cross Fade"],[147,"Red Blue Cross Fade"],[148,"Green Blue Cross Fade"],[149,"Seven color Stobe Flash"],[150,"Red Strobe Flash"],[151,"Green Strobe Flash"],[152,"Blue Strobe Flash"],[153,"Yellow Strobe Flash"],[154,"Cyan Strobe Flash"],[155,"Purple Strobe Flash"],[156,"White Strobe Flash"]],"ble":[[135,"Tricolor jump"],[136,"Seven-color jump"],[137,"Tricolor gradient"],[138,"even-color gradient"],[139,"Red gradient"],[140,"Green gradient"],[141,"Blue gradient"],[142,"Yellow gradient"],[143,"Cyan gradient"],[144,"Purple gradient"],[145,"White gradient"],[146,"Red-Green gradient"],[147,"Red-Blue gradient"],[148,"Green-Blue gradient"],[149,"Seven-color flash"],[150,"Red flash"],[151,"Green flash"],[152,"Blue flash"],[153,"Yellow flash"],[154,"Cyan flash"],[155,"Purple flash"],[156,"White flash"],[157,"Seven-color breathe"]],"dmx":[[255,"AUTO"],[1,"Forward Dreaming"],[2,"Backward Dreaming"],[3,"Forward 7 Colors"],[4,"Backward 7 Colors"],[5,"Forward RD/GN/BU"],[6,"Backward RD/GN/BU"],[7,"Forward YE/CN/VT"],[8,"Backward YE/CN/VT"],[9,"Forward 6 Colors RD"],[10,"Backward 6 Colors RD"],[11,"Forward 6 Colors GN"],[12,"Backward 6 Colors GN"],[13,"Forward 6 Colors BU"],[14,"Backward 6 Colors BU"],[15,"Forward 6 Colors CN"],[16,"Backward 6 Colors CN"],[17,"Forward 6 Colors YE"],[18,"Backward 6 Colors YE"],[19,"Forward 6 Colors VT"],[20,"Backward 6 Colors VT"],[21,"Forward 6 Colors WH"],[22,"Backward 6 Colors WH"],[23,"Forward Trailing 7 Colors"],[24,"Backward Trailing 7 Colors"],[25,"Forward Trailing RD"],[26,"Backward Trailing RD"],[27,"Forward Trailing GN"],[28,"Backward Trailing GN"],[29,"Forward Trailing BU"],[30,"Backward Trailing BU"],[31,"Forward Trailing YE"],[32,"Backward Trailing YE"],[33,"Forward Trailing CN"],[34,"Backward Trailing CN"],[35,"Forward Trailing VT"],[36,"Backward Trailing VT"],[37,"Forward Trailing WH"],[38,"Backward Trailing WH"],[39,"Forward Streaming 7 Colors"],[40,"Backward Streaming 7 Colors"],[41,"Forward Streaming RD/GN/BU"],[42,"Backward Streaming RD/GN/BU"],[43,"Forward Streaming YE/CN/VT"],[44,"Backward Streaming YE/CN/VT"],[45,"Forward Streaming RD/GN"],[46,"Backward Streaming RD/GN"],[47,"Forward Streaming GN/BU"],[48,"Backward Streaming GN/BU"],[49,"Forward Streaming YE/BU"],[50,"Backward Streaming YE/BU"],[51,"Forward Streaming YE/CN"],[52,"Backward Streaming YE/CN"],[53,"Forward Streaming CN/VT"],[54,"Backward Streaming CN/VT"],[55,"Forward Streaming BK/WH"],[56,"Backward Streaming BK/WH"],[57,"Open Curtain 7 Colors"],[58,"Close Curtain 7 Colors"],[59,"Open Curtain RD/GN/BU"],[60,"Close Curtain RD/GN/BU"],[61,"Open Curtain YE/CN/VT"],[62,"Close Curtain YE/CN/VT"],[63,"Forward Follow Spot 7 Colors"],[64,"Backward Follow Spot 7 Colors"],[65,"Forward Follow Spot RD/GN/BU"],[66,"Backward Follow Spot RD/GN/BU"],[67,"Forward Follow Spot YE/CN/VT"],[68,"Backward Follow Spot YE/CN/VT"],[69,"Forward Flutter 7 Colors"],[70,"Backward Flutter 7 Colors"],[71,"Forward Flutter RD/GN/BU"],[72,"Backward Flutter RD/GN/BU"],[73,"Forward Flutter YE/CN/VT"],[74,"Backward Flutter YE/CN/VT"],[75,"Hop 7 Colors"],[76,"Hop RD/GN/BU"],[77,"Hop RD/GN/BU"],[78,"Strobe 7 Colors"],[79,"Strobe RD/GN/BU"],[80,"Strobe YE/CN/VT"],[81,"Gradual 7 Colors"],[82,"Gradual RD/E"],[83,"Gradual RD/VT"],[84,"Gradual GN/CN"],[85,"Gradual GN/YE"],[86,"Gradual BU/VT"],[87,"Close Curtain RD"],[88,"Close Curtain GN"],[89,"Close Curtain BU"],[90,"Close Curtain YE"],[91,"Close Curtain CN"],[92,"Close Curtain VT"],[93,"Close Curtain WH"],[94,"Open Curtain RD"],[95,"Open Curtain GN"],[96,"Open Curtain BU"],[97,"Open Curtain YE"],[98,"Open Curtain CN"],[99,"Open Curtain VT"],[100,"Open Curtain WH"],[101,"Horse Race RD"],[102,"Horse Race GN"],[103,"Horse Race BU"],[104,"Horse Race YE"],[105,"Horse Race CN"],[106,"Horse Race VT"],[107,"Horse Race WH"],[108,"Forward Run RD"],[109,"Backward Run RD"],[110,"Forward Run GN"],[111,"Backward Run GN"],[112,"Forward Run BU"],[113,"Backward Run BU"],[114,"Forward Run YE"],[115,"Backward Run YE"],[116,"Forward Run CN"],[117,"Backward Run CN"],[118,"Forward Run VT"],[119,"Backward Run VT"],[120,"Forward Run WH"],[121,"Backward Run WH"],[122,"Forward Run 7 Colors"],[123,"Backward Run 7 Colors"],[124,"Forward Run RD/GN/BU"],[125,"Backward Run RD/GN/BU"],[126,"Forward Run YE/CN/VT"],[127,"Backward Run YE/CN/VT"],[128,"Forward Run BU/YE/VT"],[129,"Forward Run GN/BU/YE"],[130,"Backward Run BU/YE/VT"],[131,"Forward Run RD/ON/WH"],[132,"Backward Run RD/ON/WH"],[133,"Forward Run GN ON RD"],[134,"Backward Run GN ON RD"],[135,"Forward Run BU ON GN"],[136,"Backward Run BU ON GN"],[137,"Forward Run YE ON BU"],[138,"Backward Run YE ON BU"],[139,"Forward Run CN ON YE"],[140,"Backward Run CN ON YE"],[141,"Forward Run VT ON CN"],[142,"Backward Run VT ON CN"],[143,"Forward Run WH ON VT"],[144,"Backward Run WH ON VT"],[145,"Forward Run WH ON RD"],[146,"Backward Run WH ON RD"],[147,"Forward Run 7 COLOR ON RD"],[148,"Backward Run 7 COLOR ON RD"],[149,"Forward Run 7 COLOR ON GN"],[150,"Backward Run 7 COLOR ON GN"],[151,"Forward Run 7 COLOR ON BU"],[152,"Backward Run 7 COLOR ON BU"],[153,"Forward Run 7 COLOR ON YE"],[154,"Backward Run 7 COLOR ON YE"],[155,"Forward Run 7 COLOR ON CN"],[156,"Backward Run 7 COLOR ON CN"],[157,"Forward Run 7 COLOR ON VT"],[158,"Backward Run 7 COLOR ON VT"],[159,"Forward Run 7 COLOR ON WH"],[160,"Backward Run 7 COLOR ON WH"],[161,"Forward Flow WH RD WH"],[162,"Backward Flow WH RD WH"],[163,"Forward Flow WH GN WH"],[164,"Backward Flow WH GN WH"],[165,"Forward Flow WH BU WH"],[166,"Backward Flow WH BU WH"],[167,"Forward Flow WH YE WH"],[168,"Backward Flow WH YE WH"],[169,"Forward Flow WH CN WH"],[170,"Backward Flow WH CN WH"],[171,"Forward Flow WH VT WH"],[172,"Backward Flow WH VT WH"],[173,"Forward Flow RD WH RD"],[174,"Backward Flow RD WH RD"],[175,"Forward Flow GN WH GN"],[176,"Backward Flow GN WH GN"],[177,"Forward Flow BU WH BU"],[178,"Backward Flow BU WH BU"],[179,"Forward Flow YE WH YE"],[180,"Backward Flow YE WH YE"],[181,"Forward Flow CN WH CN"],[182,"Backward Flow CN WH CN"],[183,"Forward Flow VT WH VT"],[184,"Backward Flow VT WH VT"],[185,"Forward Run GN ON BU"],[186,"Backward Run GN ON BU"],[187,"Forward Run GN ON RD"],[188,"Backward Run GN ON RD"],[189,"Forward Run RD ON BU"],[190,"Backward Run RD ON BU"],[191,"Forward Run CN ON YE"],[192,"Backward Run CN ON YE"],[193,"Forward Run YE ON VT"],[194,"Backward Run YE ON VT"],[195,"Forward Run WH ON YE"],[196,"Backward Run WH ON YE"],[197,"Forward Run YE ON WH"],[198,"Backward Run YE ON WH"],[199,"Forward Swab 7 COLORS"],[200,"Backward Swab 7 COLORS"],[201,"Forward Swab RD GN BU"],[202,"Backward Swab RD GN BU"],[203,"Forward Swab YE CN VT"],[204,"Backward Swab YE CN VT"],[205,"Open Curtain Swab 7 COLORS"],[206,"Close Curtain Swab 7 COLORS"],[207,"Open Curtain Swab R G B"],[208,"Close Curtain Swab R G B"],[209,"Open Curtain Swab Y C P"],[210,"Close Curtain Swab Y C P"]]};
 const U = n => (typeof n === 'number') ? '0000' + n.toString(16).padStart(4,'0') + '-0000-1000-8000-00805f9b34fb' : n.toLowerCase();
 const hex = a => Array.from(a, b => b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
@@ -247,9 +261,14 @@ function probeSteps(p){
 // ---------- panel ----------
 const PANELS = [
   {key:'interior', title:'💡 Interior (ambient)', def:'findn', filters:[{namePrefix:'CMM'},{services:[U(0xFFC0)]}]},
+  // Door controllers: same "Dynamic ambient lighting" system; they may show as unnamed "Unknown device" entries.
+  {key:'door_d',  title:'🚪 Driver door',     def:'findn', door:true, filters:[{services:[U(0xFFC0)]},{namePrefix:'CMM'}]},
+  {key:'door_p',  title:'🚪 Passenger door',  def:'findn', door:true, filters:[{services:[U(0xFFC0)]},{namePrefix:'CMM'}]},
+  {key:'door_lr', title:'🚪 Left rear door',  def:'findn', door:true, filters:[{services:[U(0xFFC0)]},{namePrefix:'CMM'}]},
+  {key:'door_rr', title:'🚪 Right rear door', def:'findn', door:true, filters:[{services:[U(0xFFC0)]},{namePrefix:'CMM'}]},
   {key:'star1', title:'🌌 Star lights 1', def:'ledble', filters:[{namePrefix:'LEDBLE'},{namePrefix:'LEDDMX'},{namePrefix:'LEDCAR'},{namePrefix:'LED'},{services:[U(0xFFE0)]}]},
   {key:'star2', title:'🌌 Star lights 2', def:'ledble', filters:[{namePrefix:'LEDBLE'},{namePrefix:'LEDDMX'},{namePrefix:'LEDCAR'},{namePrefix:'LED'},{services:[U(0xFFE0)]}]},
-  {key:'under', title:'🌈 Underglow (Colourful LED)', def:'samying', under:true,
+  {key:'under', title:'🌈 Underglow (Colourful LED)', def:'samying', under:true, defChan:'1',
    filters:['colourful','Colourful','COLOURFUL','colorful','Colorful','COLORFUL'].map(n=>({namePrefix:n}))},
 ];
 const SWATCHES = ['#ff0000','#ff6a00','#ffd000','#00ff40','#00e5ff','#0040ff','#8a2be2','#ff00c8','#ffffff'];
@@ -257,7 +276,7 @@ const hexToRgb = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
 
 class Panel {
   constructor(cfg){
-    Object.assign(this, cfg); this.dev=null; this.ch=null; this.q=Promise.resolve(); this.rgb=[255,0,64]; this.spdV=50; this.chan='';
+    Object.assign(this, cfg); this.dev=null; this.ch=null; this.q=Promise.resolve(); this.rgb=[255,0,64]; this.spdV=50; this.chan=cfg.defChan||''; this.chanUserSet=false;
     const el = this.el = document.getElementById('panelTpl').content.firstElementChild.cloneNode(true);
     const $ = s => el.querySelector(s); this.$ = $;
     $('.title').textContent = cfg.title; this.briV = 100;
@@ -269,19 +288,36 @@ class Panel {
       any.parentNode.parentNode.insertBefore(Object.assign(document.createElement('div'),{className:'row'}), any.parentNode.nextSibling).appendChild(any);
       $('.probe-row').hidden = false;
     }
+    if (cfg.door) {
+      const tips = $('.tips'); tips.hidden = false;
+      tips.innerHTML = '<b>Connecting a door controller</b><ol><li>Tap <b>Show all devices</b>. The door controllers probably appear as <b>“Unknown or unsupported device”</b> with no name.</li><li>Pick one. The log should list service <b>ffc0</b>, which marks a Dynamic-ambient controller. The page auto-detects the protocol.</li><li>Tap <b>Blink to identify</b> and watch which door flashes. If it’s the wrong door, tap Disconnect and use that panel instead.</li><li>Next time, <b>Connect</b> (or Connect all) reconnects it without the chooser.</li></ol>';
+      const any = $('.b-any'); any.textContent = '🔍 Show all devices (pick an “Unknown device”)'; any.classList.add('pri','big');
+      any.parentNode.parentNode.insertBefore(Object.assign(document.createElement('div'),{className:'row'}), any.parentNode.nextSibling).appendChild(any);
+      $('.b-conn').classList.remove('pri');
+      const id = $('.b-ident'); id.hidden = false; id.onclick = () => this.identify();
+    }
+    if (cfg.key === 'interior') {
+      const row = Object.assign(document.createElement('div'), {className:'row syncrow'});
+      row.innerHTML = '<label style="min-width:auto;color:var(--txt)"><input type="checkbox" class="sync"> 🔗 <b>Sync doors</b>: power, color, brightness, effect and speed here also go to every connected door (all 5 together)</label>';
+      $('.proto').parentNode.after(row);
+      const cb = row.querySelector('.sync'); cb.checked = localStorage.getItem('syncDoors') !== '0';
+      cb.onchange = () => { localStorage.setItem('syncDoors', cb.checked ? '1' : '0'); log(`Sync doors ${cb.checked?'ON':'OFF'}`); };
+      this.syncEl = cb;
+    }
     const sel = $('.proto'); Object.entries(PROTOCOLS).forEach(([k,p]) => sel.add(new Option(p.label, k)));
     sel.value = localStorage.getItem('proto_'+cfg.key) || cfg.def; sel.onchange = () => this.setProto(sel.value, true);
     this.setProto(sel.value); this.renderState();
     $('.b-conn').onclick = () => this.connect(false, true); $('.b-pick').onclick = () => this.connect(false, false); $('.b-any').onclick = () => this.connect(true, false);
     $('.b-probe').onclick = () => this.probe(); $('.b-probe-stop').onclick = () => { this.probing = false; }; $('.b-disc').onclick = () => this.disconnect();
-    $('.b-on').onclick = () => this.power(true); $('.b-off').onclick = () => this.power(false);
-    $('.color').oninput = e => this.color(hexToRgb(e.target.value));
-    const sw = $('.sw'); SWATCHES.forEach(c => { const b = document.createElement('b'); b.style.background=c; b.onclick=()=>{ $('.color').value=c; this.color(hexToRgb(c)); }; sw.appendChild(b); });
-    $('.bri').oninput = e => { $('.v-bri').textContent = e.target.value; this.bright(+e.target.value); };
-    $('.spd').oninput = e => { $('.v-spd').textContent = e.target.value; this.speed(+e.target.value); };
-    $('.fx').onchange = e => this.effect(e.target.value);
+    $('.b-on').onclick = () => this.each(p => p.power(true)); $('.b-off').onclick = () => this.each(p => p.power(false));
+    const setColor = c => this.each(p => { p.$('.color').value = c; p.color(hexToRgb(c)); });
+    $('.color').oninput = e => setColor(e.target.value);
+    const sw = $('.sw'); SWATCHES.forEach(c => { const b = document.createElement('b'); b.style.background=c; b.onclick=()=>setColor(c); sw.appendChild(b); });
+    $('.bri').oninput = e => { const v = e.target.value; this.each(p => { p.$('.bri').value = v; p.$('.v-bri').textContent = v; p.bright(+v); }); };
+    $('.spd').oninput = e => { const v = e.target.value; this.each(p => { p.$('.spd').value = v; p.$('.v-spd').textContent = v; p.speed(+v); }); };
+    $('.fx').onchange = e => { const id = e.target.value; this.each(p => { if (p !== this && p.proto !== this.proto) return log(`${p.key}: skipped effect (protocol ${p.proto} differs)`); p.$('.fx').value = id; p.effect(id); }); };
     $('.b-mic').onclick = () => this.run(this.P.music(this), 'music', true);
-    $('.chan').onchange = e => this.chan = e.target.value;
+    $('.chan').value = this.chan; $('.chan').onchange = e => { this.chan = e.target.value; this.chanUserSet = true; log(`${this.key}: device byte set to ${this.chan===''?'default':this.chan} for this session`); };
     $('.b-raw').onclick = () => { const s = $('.raw').value.replace(/0x/gi,'').replace(/[^0-9a-f]/gi,''); if (s.length%2) return log('Raw hex needs whole bytes','bad'); this.run([s.match(/../g).map(h=>parseInt(h,16))],'raw'); };
     document.getElementById('panels').appendChild(el);
   }
@@ -291,6 +327,20 @@ class Panel {
     this.$('.hint').textContent = this.P.hint || '';
     if (manual) log(`${this.key}: protocol set to ${k}`);
     if (manual && this.dev && this.dev.gatt.connected) this.bindChar().catch(e => log(`${this.key}: ${e.message}`,'bad'));
+  }
+  // interior + doors together when "Sync doors" is on
+  each(fn){ const t = [this];
+    if (this.key === 'interior' && this.syncEl && this.syncEl.checked) t.push(...panels.filter(p => p.door && p.connected()));
+    t.forEach(fn); }
+  async identify(){
+    if (!this.connected()) return log(`${this.key}: connect first`,'bad');
+    log(`${this.key}: blinking. Watch which door flashes.`,'ok');
+    for (let i = 0; i < 3; i++) { await this.power(false); await sleep(500); await this.power(true); await sleep(500); }
+  }
+  enforceChan(){ // underglow: device byte 01 unless changed this session
+    if (!this.defChan || this.chanUserSet) return;
+    if (this.chan !== this.defChan) log(`${this.key}: device byte reset to ${this.defChan}`);
+    this.chan = this.defChan; this.$('.chan').value = this.defChan;
   }
   status(t, on){ this.$('.status').textContent = t; this.$('.dot').classList.toggle('on', !!on); this.$('.b-disc').disabled = !on; }
   async savedDevice(){
@@ -324,7 +374,9 @@ class Panel {
   }
   async attach(dev){
     this.dev = dev; this.seq = 0; localStorage.setItem('dev_'+this.key, dev.id);
-    if (dev.name) { localStorage.setItem('devname_'+this.key, dev.name); this.$('.title').textContent = `${this.title} · ${dev.name}`; }
+    this.enforceChan();
+    const dn = dev.name || (this.door ? `unnamed ${dev.id.slice(0,6)}` : '');
+    if (dn) { localStorage.setItem('devname_'+this.key, dn); this.$('.title').textContent = `${this.title} · ${dn}`; }
     if (!dev._clBound) { dev._clBound = true; dev.addEventListener('gattserverdisconnected', () => { if (this.dev === dev) { this.ch = null; this.status(`Disconnected: ${dev.name||dev.id}`); log(`${this.key}: disconnected`,'bad'); clearInterval(this.pollT); updateAll(); } }); }
     const server = await this.gattConnect(dev);
     let services = [];
@@ -434,6 +486,7 @@ class Panel {
   speed(v){ this.spdV = v; this.throttled('s', () => this.run(this.P.speed(clamp(v,0,100), this), 'speed', true), 80); }
   effect(id){ if (id === '') return; this.run(this.P.effect(id, this), 'effect', true); }
 }
+if (localStorage.getItem('chanMigrated') !== '1') { Object.keys(localStorage).filter(k => /^chan/.test(k)).forEach(k => localStorage.removeItem(k)); localStorage.setItem('chanMigrated','1'); }
 const panels = PANELS.map(c => new Panel(c));
 
 // ---------- master ----------
@@ -444,7 +497,7 @@ document.getElementById('mOff').onclick = () => allOff();
 mColor.oninput = () => { const c = hexToRgb(mColor.value); panels.forEach(p => p.$('.color').value = mColor.value); live().forEach(p => p.color(c)); };
 SWATCHES.forEach(c => { const b = document.createElement('b'); b.style.background=c; b.onclick=()=>{ mColor.value=c; mColor.oninput(); }; document.getElementById('mSw').appendChild(b); });
 mBri.oninput = () => { document.getElementById('mBriV').textContent = mBri.value; panels.forEach(p => { p.$('.bri').value = mBri.value; p.$('.v-bri').textContent = mBri.value; }); live().forEach(p => p.bright(+mBri.value)); };
-document.getElementById('mConnect').onclick = async () => {
+async function connectAll(){
   // Chrome reconnects without a chooser only to devices it already allowed (getDevices).
   let any = false;
   for (const p of panels) {
@@ -455,9 +508,53 @@ document.getElementById('mConnect').onclick = async () => {
   if (any) return;
   // Otherwise Chrome allows only one chooser per tap, so open the next unconnected panel's chooser.
   const p = panels.find(p => !(p.dev && p.dev.gatt.connected));
-  if (p) { log(`Connect all: choose the device for ${p.title}. Tap again for the next one.`); p.connect(false, false); }
+  if (p) { log(`Connect all: choose the device for ${p.title}${p.door?' (pick an “Unknown device”)':''}. Tap again for the next one.`); p.connect(!!p.door, false); }
   else log('All lights connected','ok');
+}
+document.getElementById('mConnect').onclick = connectAll;
+document.getElementById('scConnect').onclick = connectAll;
+
+// ---------- scenes ----------
+// Per role: solid color, an optional mode sent before the color (FINDN static), and a built-in effect per protocol where one fits.
+const PURPLE_FADE = {ledble:144, ledble_s:144, elk:144, leddmx:83, leddmx_s:83}; // "Purple gradient" (LED LAMP / ELK), "Gradual RD/VT" (DMX)
+const SCENES = {
+  trunk: {name:'🎃 Trunk or Treat',
+    interior: {rgb:[255,60,0],  pre:{findn:'r0'}},                 // orange, static
+    star:     {rgb:[138,43,226], fx:PURPLE_FADE},                  // slow purple fade
+    under:    {rgb:[128,0,255],  fx:PURPLE_FADE}},                 // Samying modes unmapped, so solid purple
+  green: {name:'👻 Spooky green',
+    interior: {rgb:[0,255,40],  pre:{findn:'r0'}},
+    star:     {rgb:[138,43,226], fx:PURPLE_FADE},
+    under:    {rgb:[0,255,30]}},
 };
+const roleOf = p => (p.key === 'interior' || p.door) ? 'interior' : p.under ? 'under' : 'star';
+let sceneBusy = false;
+async function runScene(id){
+  const sc = SCENES[id]; if (sceneBusy) return log('Scene already running…'); sceneBusy = true;
+  try {
+    log(`Scene ${sc.name}: start`,'ok'); let n = 0;
+    for (const p of panels) {
+      if (!p.connected()) { log(`  ${p.key}: not connected, skipped`); continue; }
+      const look = sc[roleOf(p)], pr = p.proto, hx = '#' + look.rgb.map(v => v.toString(16).padStart(2,'0')).join('');
+      try {
+        p.enforceChan();
+        let ok = await p.power(true); await sleep(120);
+        if (look.pre && look.pre[pr] != null) { ok = await p.run(p.P.effect(String(look.pre[pr]), p), 'effect', true) && ok; await sleep(120); }
+        p.rgb = look.rgb.slice(); p.briV = 100; p.$('.color').value = hx;
+        ok = await p.run(p.P.color(...look.rgb, p), 'color', true) && ok; await sleep(120);
+        ok = await p.run(p.P.bright(100, p), 'bright', true) && ok; p.$('.bri').value = 100; p.$('.v-bri').textContent = '100';
+        let fx = '';
+        if (look.fx && look.fx[pr] != null) { await sleep(150); fx = String(look.fx[pr]); ok = await p.run(p.P.effect(fx, p), 'effect', true) && ok; p.$('.fx').value = fx; }
+        const fxName = fx ? ((p.P.effects.find(e => String(e.id) === fx) || {}).name || fx) : 'solid';
+        log(`  ${p.key}: ${ok ? 'OK' : 'some writes failed'} · ${hx} · ${fxName}`, ok ? 'ok' : 'bad'); if (ok) n++;
+      } catch(e){ log(`  ${p.key}: scene failed: ${e.message}`,'bad'); }
+      await sleep(250);
+    }
+    log(`Scene ${sc.name}: applied to ${n} light(s)${n ? '' : '. Connect lights first (Connect all)'}`, n ? 'ok' : 'bad');
+  } finally { sceneBusy = false; }
+}
+document.getElementById('scTrunk').onclick = () => runScene('trunk');
+document.getElementById('scGreen').onclick = () => runScene('green');
 
 // ---------- on/off indicator, banner, title, favicon, reminders ----------
 function ago(t){ const s = Math.max(0, (Date.now()-t)/1000|0);
@@ -499,7 +596,7 @@ async function allOff(){
   // 3) Chrome allows only one chooser per tap, so open it for the first light that needs one
   if (needPick.length) { const p = needPick[0];
     log(`ALL OFF: choose the device for ${p.title} to switch it off${needPick.length>1 ? `. Then tap ALL OFF again for the other ${needPick.length-1}` : ''}.`);
-    p.connect(false, false).then(() => p.connected() && p.power(false));
+    p.connect(!!p.door, false).then(() => p.connected() && p.power(false));
   }
   await Promise.all(withDev.map(async ([p,d]) => { try { log(`ALL OFF: reconnecting ${p.key}`); await p.attach(d); await p.power(false); } catch(e){ log(`ALL OFF: ${p.key} unreachable: ${e.message}`,'bad'); } }));
 }
@@ -507,7 +604,7 @@ document.getElementById('allOff').onclick = () => allOff();
 setInterval(updateAll, 30000);
 window.addEventListener('beforeunload', e => { if (onCount().length) { e.preventDefault(); e.returnValue = 'Some car lights are still ON.'; return e.returnValue; } });
 let swReg = null;
-if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').then(r => swReg = r).catch(() => {});
+if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(r => { swReg = r; r.update().catch(()=>{}); }).catch(() => {});
 async function notifyOn(){
   const on = onCount(); if (!on.length || !('Notification' in window) || Notification.permission !== 'granted') return;
   const body = on.map(p => p.title.replace(/^\S+\s/,'')).join(', ') + ' may still be ON. The lights are wired hot, so open Car Lights and tap ALL OFF.';
@@ -529,7 +626,7 @@ updateAll();
   if (!window.isSecureContext) m.push('This page isn’t on HTTPS or localhost, so Bluetooth is blocked.');
   if (!navigator.bluetooth) m.push('This browser doesn’t support Web Bluetooth. Use Chrome on Android with Bluetooth and Location on.');
   if (m.length){ s.hidden = false; s.textContent = m.join(' '); }
-  log(`Ready. secureContext=${window.isSecureContext} webBluetooth=${!!navigator.bluetooth} getDevices=${!!(navigator.bluetooth&&navigator.bluetooth.getDevices)}`);
+  log(`Ready (${APP_VERSION}). secureContext=${window.isSecureContext} webBluetooth=${!!navigator.bluetooth} getDevices=${!!(navigator.bluetooth&&navigator.bluetooth.getDevices)}`);
 })();
 </script>
 </body>

@@ -52,11 +52,9 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
 <header><h1>🚗 Car Lights</h1><p>Interior + 4 doors · Star lights 1 &amp; 2 · Underglow over Web Bluetooth <span class="ver" id="ver"></span></p></header>
 <main>
 <div id="flagTip" class="warn" hidden>
-  <b>Reconnecting every light each time?</b> This Chrome isn’t keeping Bluetooth permission for this page, so it can’t reconnect lights without the chooser.<br>
-  To stop reconnecting every light each time: open <b>chrome://flags</b>, search <b>“Web Bluetooth new permissions backend”</b>, set it to <b>Enabled</b>, relaunch Chrome, then pair each light once more.
-  <div class="row"><button class="pri grow" id="flagCopy">📋 Copy flag URL</button><button id="flagHide">Hide</button></div>
-  <div class="note" id="flagUrl" style="word-break:break-all">chrome://flags/#enable-web-bluetooth-new-permissions-backend</div>
-  <div class="note">Links to chrome://flags can’t be tapped. Copy the URL, paste it into the address bar and press Enter.</div>
+  <b>Why do I have to pick lights again?</b> Chrome on Android can’t yet remember Bluetooth lights between visits. The feature that would allow it (getDevices) is still an unshipped experiment, and the old chrome://flags switch for it has been removed, so there’s no setting to change.<br>
+  What works today: tap <b>Connect all</b> once per light. Each tap opens the chooser for the next light, filtered so the right one is at the top. Then <b>keep this tab open</b>. While it stays open, lights that drop out reconnect automatically, including when you switch back to the tab.
+  <div class="row"><button id="flagHide">Got it, hide this</button></div>
 </div>
 <section class="card" id="scenes">
   <h2>🎬 Scenes</h2>
@@ -110,7 +108,7 @@ details{margin-top:6px}summary{color:var(--mut);font-size:13px;cursor:pointer;pa
 
 <script>
 "use strict";
-const APP_VERSION = 'v5 · 2026-10-31 (auto-reconnect)';
+const APP_VERSION = 'v6 · 2026-10-31 (no-flag reconnect)';
 document.getElementById('ver').textContent = APP_VERSION;
 const EFFECTS = {"elk":[[128,"Static Red"],[129,"Static Blue"],[130,"Static Green"],[131,"Static Cyan"],[132,"Static Yellow"],[133,"Static Purple"],[134,"Static White"],[135,"Three Color Jumping Change"],[136,"Seven Color Jumping Change"],[137,"Three Color Cross Fade"],[138,"Seven Color Cross Fade"],[139,"Red Gradual Change"],[140,"Green Gradual Change"],[141,"Blue Gradual Change"],[142,"Yellow Gradual Change"],[143,"Cyan Gradual Change"],[144,"Purple Gradual Change"],[145,"White Gradual Change"],[146,"Red Green Cross Fade"],[147,"Red Blue Cross Fade"],[148,"Green Blue Cross Fade"],[149,"Seven color Stobe Flash"],[150,"Red Strobe Flash"],[151,"Green Strobe Flash"],[152,"Blue Strobe Flash"],[153,"Yellow Strobe Flash"],[154,"Cyan Strobe Flash"],[155,"Purple Strobe Flash"],[156,"White Strobe Flash"]],"ble":[[135,"Tricolor jump"],[136,"Seven-color jump"],[137,"Tricolor gradient"],[138,"even-color gradient"],[139,"Red gradient"],[140,"Green gradient"],[141,"Blue gradient"],[142,"Yellow gradient"],[143,"Cyan gradient"],[144,"Purple gradient"],[145,"White gradient"],[146,"Red-Green gradient"],[147,"Red-Blue gradient"],[148,"Green-Blue gradient"],[149,"Seven-color flash"],[150,"Red flash"],[151,"Green flash"],[152,"Blue flash"],[153,"Yellow flash"],[154,"Cyan flash"],[155,"Purple flash"],[156,"White flash"],[157,"Seven-color breathe"]],"dmx":[[255,"AUTO"],[1,"Forward Dreaming"],[2,"Backward Dreaming"],[3,"Forward 7 Colors"],[4,"Backward 7 Colors"],[5,"Forward RD/GN/BU"],[6,"Backward RD/GN/BU"],[7,"Forward YE/CN/VT"],[8,"Backward YE/CN/VT"],[9,"Forward 6 Colors RD"],[10,"Backward 6 Colors RD"],[11,"Forward 6 Colors GN"],[12,"Backward 6 Colors GN"],[13,"Forward 6 Colors BU"],[14,"Backward 6 Colors BU"],[15,"Forward 6 Colors CN"],[16,"Backward 6 Colors CN"],[17,"Forward 6 Colors YE"],[18,"Backward 6 Colors YE"],[19,"Forward 6 Colors VT"],[20,"Backward 6 Colors VT"],[21,"Forward 6 Colors WH"],[22,"Backward 6 Colors WH"],[23,"Forward Trailing 7 Colors"],[24,"Backward Trailing 7 Colors"],[25,"Forward Trailing RD"],[26,"Backward Trailing RD"],[27,"Forward Trailing GN"],[28,"Backward Trailing GN"],[29,"Forward Trailing BU"],[30,"Backward Trailing BU"],[31,"Forward Trailing YE"],[32,"Backward Trailing YE"],[33,"Forward Trailing CN"],[34,"Backward Trailing CN"],[35,"Forward Trailing VT"],[36,"Backward Trailing VT"],[37,"Forward Trailing WH"],[38,"Backward Trailing WH"],[39,"Forward Streaming 7 Colors"],[40,"Backward Streaming 7 Colors"],[41,"Forward Streaming RD/GN/BU"],[42,"Backward Streaming RD/GN/BU"],[43,"Forward Streaming YE/CN/VT"],[44,"Backward Streaming YE/CN/VT"],[45,"Forward Streaming RD/GN"],[46,"Backward Streaming RD/GN"],[47,"Forward Streaming GN/BU"],[48,"Backward Streaming GN/BU"],[49,"Forward Streaming YE/BU"],[50,"Backward Streaming YE/BU"],[51,"Forward Streaming YE/CN"],[52,"Backward Streaming YE/CN"],[53,"Forward Streaming CN/VT"],[54,"Backward Streaming CN/VT"],[55,"Forward Streaming BK/WH"],[56,"Backward Streaming BK/WH"],[57,"Open Curtain 7 Colors"],[58,"Close Curtain 7 Colors"],[59,"Open Curtain RD/GN/BU"],[60,"Close Curtain RD/GN/BU"],[61,"Open Curtain YE/CN/VT"],[62,"Close Curtain YE/CN/VT"],[63,"Forward Follow Spot 7 Colors"],[64,"Backward Follow Spot 7 Colors"],[65,"Forward Follow Spot RD/GN/BU"],[66,"Backward Follow Spot RD/GN/BU"],[67,"Forward Follow Spot YE/CN/VT"],[68,"Backward Follow Spot YE/CN/VT"],[69,"Forward Flutter 7 Colors"],[70,"Backward Flutter 7 Colors"],[71,"Forward Flutter RD/GN/BU"],[72,"Backward Flutter RD/GN/BU"],[73,"Forward Flutter YE/CN/VT"],[74,"Backward Flutter YE/CN/VT"],[75,"Hop 7 Colors"],[76,"Hop RD/GN/BU"],[77,"Hop RD/GN/BU"],[78,"Strobe 7 Colors"],[79,"Strobe RD/GN/BU"],[80,"Strobe YE/CN/VT"],[81,"Gradual 7 Colors"],[82,"Gradual RD/E"],[83,"Gradual RD/VT"],[84,"Gradual GN/CN"],[85,"Gradual GN/YE"],[86,"Gradual BU/VT"],[87,"Close Curtain RD"],[88,"Close Curtain GN"],[89,"Close Curtain BU"],[90,"Close Curtain YE"],[91,"Close Curtain CN"],[92,"Close Curtain VT"],[93,"Close Curtain WH"],[94,"Open Curtain RD"],[95,"Open Curtain GN"],[96,"Open Curtain BU"],[97,"Open Curtain YE"],[98,"Open Curtain CN"],[99,"Open Curtain VT"],[100,"Open Curtain WH"],[101,"Horse Race RD"],[102,"Horse Race GN"],[103,"Horse Race BU"],[104,"Horse Race YE"],[105,"Horse Race CN"],[106,"Horse Race VT"],[107,"Horse Race WH"],[108,"Forward Run RD"],[109,"Backward Run RD"],[110,"Forward Run GN"],[111,"Backward Run GN"],[112,"Forward Run BU"],[113,"Backward Run BU"],[114,"Forward Run YE"],[115,"Backward Run YE"],[116,"Forward Run CN"],[117,"Backward Run CN"],[118,"Forward Run VT"],[119,"Backward Run VT"],[120,"Forward Run WH"],[121,"Backward Run WH"],[122,"Forward Run 7 Colors"],[123,"Backward Run 7 Colors"],[124,"Forward Run RD/GN/BU"],[125,"Backward Run RD/GN/BU"],[126,"Forward Run YE/CN/VT"],[127,"Backward Run YE/CN/VT"],[128,"Forward Run BU/YE/VT"],[129,"Forward Run GN/BU/YE"],[130,"Backward Run BU/YE/VT"],[131,"Forward Run RD/ON/WH"],[132,"Backward Run RD/ON/WH"],[133,"Forward Run GN ON RD"],[134,"Backward Run GN ON RD"],[135,"Forward Run BU ON GN"],[136,"Backward Run BU ON GN"],[137,"Forward Run YE ON BU"],[138,"Backward Run YE ON BU"],[139,"Forward Run CN ON YE"],[140,"Backward Run CN ON YE"],[141,"Forward Run VT ON CN"],[142,"Backward Run VT ON CN"],[143,"Forward Run WH ON VT"],[144,"Backward Run WH ON VT"],[145,"Forward Run WH ON RD"],[146,"Backward Run WH ON RD"],[147,"Forward Run 7 COLOR ON RD"],[148,"Backward Run 7 COLOR ON RD"],[149,"Forward Run 7 COLOR ON GN"],[150,"Backward Run 7 COLOR ON GN"],[151,"Forward Run 7 COLOR ON BU"],[152,"Backward Run 7 COLOR ON BU"],[153,"Forward Run 7 COLOR ON YE"],[154,"Backward Run 7 COLOR ON YE"],[155,"Forward Run 7 COLOR ON CN"],[156,"Backward Run 7 COLOR ON CN"],[157,"Forward Run 7 COLOR ON VT"],[158,"Backward Run 7 COLOR ON VT"],[159,"Forward Run 7 COLOR ON WH"],[160,"Backward Run 7 COLOR ON WH"],[161,"Forward Flow WH RD WH"],[162,"Backward Flow WH RD WH"],[163,"Forward Flow WH GN WH"],[164,"Backward Flow WH GN WH"],[165,"Forward Flow WH BU WH"],[166,"Backward Flow WH BU WH"],[167,"Forward Flow WH YE WH"],[168,"Backward Flow WH YE WH"],[169,"Forward Flow WH CN WH"],[170,"Backward Flow WH CN WH"],[171,"Forward Flow WH VT WH"],[172,"Backward Flow WH VT WH"],[173,"Forward Flow RD WH RD"],[174,"Backward Flow RD WH RD"],[175,"Forward Flow GN WH GN"],[176,"Backward Flow GN WH GN"],[177,"Forward Flow BU WH BU"],[178,"Backward Flow BU WH BU"],[179,"Forward Flow YE WH YE"],[180,"Backward Flow YE WH YE"],[181,"Forward Flow CN WH CN"],[182,"Backward Flow CN WH CN"],[183,"Forward Flow VT WH VT"],[184,"Backward Flow VT WH VT"],[185,"Forward Run GN ON BU"],[186,"Backward Run GN ON BU"],[187,"Forward Run GN ON RD"],[188,"Backward Run GN ON RD"],[189,"Forward Run RD ON BU"],[190,"Backward Run RD ON BU"],[191,"Forward Run CN ON YE"],[192,"Backward Run CN ON YE"],[193,"Forward Run YE ON VT"],[194,"Backward Run YE ON VT"],[195,"Forward Run WH ON YE"],[196,"Backward Run WH ON YE"],[197,"Forward Run YE ON WH"],[198,"Backward Run YE ON WH"],[199,"Forward Swab 7 COLORS"],[200,"Backward Swab 7 COLORS"],[201,"Forward Swab RD GN BU"],[202,"Backward Swab RD GN BU"],[203,"Forward Swab YE CN VT"],[204,"Backward Swab YE CN VT"],[205,"Open Curtain Swab 7 COLORS"],[206,"Close Curtain Swab 7 COLORS"],[207,"Open Curtain Swab R G B"],[208,"Close Curtain Swab R G B"],[209,"Open Curtain Swab Y C P"],[210,"Close Curtain Swab Y C P"]]};
 const U = n => (typeof n === 'number') ? '0000' + n.toString(16).padStart(4,'0') + '-0000-1000-8000-00805f9b34fb' : n.toLowerCase();
@@ -297,7 +295,7 @@ class Panel {
     }
     if (cfg.door) {
       const tips = $('.tips'); tips.hidden = false;
-      tips.innerHTML = '<b>Connecting a door controller</b><ol><li>Tap <b>Show all devices</b>. The door controllers probably appear as <b>“Unknown or unsupported device”</b> with no name.</li><li>Pick one. The log should list service <b>ffc0</b>, which marks a Dynamic-ambient controller. The page auto-detects the protocol.</li><li>Tap <b>Blink to identify</b> and watch which door flashes. If it’s the wrong door, tap Disconnect and use that panel instead.</li><li>Next time, <b>Connect</b> (or Connect all) reconnects it without the chooser.</li></ol>';
+      tips.innerHTML = '<b>Connecting a door controller</b><ol><li>Tap <b>Show all devices</b>. Door controllers have no name, so they appear as <b>“Unknown or unsupported device”</b>. Wait 10–15 s for the list to fill.</li><li>Pick one. The log lists its services. <b>ffc0</b> means a Dynamic-ambient controller, and the page auto-detects the protocol.</li><li>Tap <b>Blink to identify</b> and watch which door flashes. If it’s the wrong door, tap Disconnect and use that panel instead.</li></ol><b>No unknown devices in the list?</b> A BLE controller stops advertising while something is connected to it, so it can’t appear in any chooser. Try:<ol><li>Disconnect <b>Interior</b> on this page, and force-stop “Dynamic ambient lighting”. The phone app, or a second phone, may be holding the doors.</li><li>Turn the car (or the lights) fully off for 30 s, then on, and tap Show all devices within the first minute. Many door modules advertise only briefly after power-on, then pair with the main controller.</li><li>Make sure phone <b>Location</b> is on, and that Chrome has the <b>Nearby devices</b> and Location permissions (Android Settings → Apps → Chrome → Permissions).</li><li>Open <b>chrome://bluetooth-internals</b> → Devices → Start scan. If no unnamed devices appear there either, the doors aren’t advertising, and only the main controller can reach them. That’s fine, because Interior with <b>Sync doors</b> already drives them.</li></ol>';
       const any = $('.b-any'); any.textContent = '🔍 Show all devices (pick an “Unknown device”)'; any.classList.add('pri','big');
       any.parentNode.parentNode.insertBefore(Object.assign(document.createElement('div'),{className:'row'}), any.parentNode.nextSibling).appendChild(any);
       $('.b-conn').classList.remove('pri');
@@ -414,7 +412,8 @@ class Panel {
     const dn = dev.name || (this.door ? `unnamed ${dev.id.slice(0,6)}` : '');
     if (dn) { localStorage.setItem('devname_'+this.key, dn); this.$('.title').textContent = `${this.title} · ${dn}`; }
     if (!dev._clBound) { dev._clBound = true; dev.addEventListener('gattserverdisconnected', () => { if (this.dev === dev) { this.ch = null; this.status(`Disconnected: ${dev.name||dev.id}`); log(`${this.key}: disconnected`,'bad'); clearInterval(this.pollT); updateAll(); this.scheduleRetry(dev); } }); }
-    const server = await this.gattConnect(dev);
+    this.attaching = true; let server;
+    try { server = await this.gattConnect(dev); } finally { this.attaching = false; }
     let services = [];
     try { services = await server.getPrimaryServices(); } catch(e){ log(`${this.key}: service list failed: ${e.message}`); }
     this.gattMap = [];
@@ -535,16 +534,20 @@ mColor.oninput = () => { const c = hexToRgb(mColor.value); panels.forEach(p => p
 SWATCHES.forEach(c => { const b = document.createElement('b'); b.style.background=c; b.onclick=()=>{ mColor.value=c; mColor.oninput(); }; document.getElementById('mSw').appendChild(b); });
 mBri.oninput = () => { document.getElementById('mBriV').textContent = mBri.value; panels.forEach(p => { p.$('.bri').value = mBri.value; p.$('.v-bri').textContent = mBri.value; }); live().forEach(p => p.bright(+mBri.value)); };
 // ---------- reconnect without the chooser ----------
-// Chrome hands back previously allowed devices only via getDevices(). On Android/desktop this needs the
-// "Web Bluetooth new permissions backend" flag; without it getDevices is missing or returns [].
+// Chrome hands back previously allowed devices only via getDevices(). As of Chrome 156 (Oct 2026) that is still
+// a developer trial (chromestatus 4797798639730688, target M169) and its chrome://flags entry has expired, so on normal
+// Chrome it is missing. Within one page session we can still reuse the BluetoothDevice objects we already hold (p.dev).
+let lastAllowed = [];
 async function allowedDevices(){
   if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return [];
-  try { return await navigator.bluetooth.getDevices(); } catch(e){ log(`getDevices failed: ${e.message}`,'bad'); return []; }
+  try { return lastAllowed = await navigator.bluetooth.getDevices(); } catch(e){ log(`getDevices failed: ${e.message}`,'bad'); return []; }
 }
 // saved device id first, then saved name (only if that name is unique and not claimed by another panel)
 function matchDevices(allowed){
   const m = new Map(), used = new Set();
-  panels.forEach(p => { const id = localStorage.getItem('dev_'+p.key); const d = id && allowed.find(d => d.id === id); if (d) { m.set(p, d); used.add(d.id); } });
+  // same page session: the device object picked earlier still works for gatt.connect() without a chooser
+  panels.forEach(p => { if (p.dev && !p.attaching && !m.has(p)) { m.set(p, p.dev); used.add(p.dev.id); } });
+  panels.forEach(p => { const id = localStorage.getItem('dev_'+p.key); if (m.has(p)) return; const d = id && allowed.find(d => d.id === id); if (d) { m.set(p, d); used.add(d.id); } });
   panels.forEach(p => { if (m.has(p) || !p.hasSaved()) return; const nm = localStorage.getItem('devname_'+p.key);
     if (!nm || /^unnamed /.test(nm)) return; const c = allowed.filter(d => d.name === nm && !used.has(d.id));
     if (c.length === 1) { m.set(p, c[0]); used.add(c[0].id); log(`${p.key}: matched saved device by name “${nm}”`); } });
@@ -563,12 +566,10 @@ function waitAdvert(dev, ms){
 function flagTip(show){
   const el = document.getElementById('flagTip');
   if (!show) { el.hidden = true; return; }
-  if (localStorage.getItem('flagTipHidden') === '1') return;
+  if (localStorage.getItem('flagTipHidden6') === '1') return;
   el.hidden = false;
 }
-document.getElementById('flagCopy').onclick = () => { const u = document.getElementById('flagUrl').textContent;
-  (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject(new Error('no clipboard'))).then(() => log('Flag URL copied. Paste it into Chrome’s address bar.','ok')).catch(() => { log('Copy failed. Long-press the URL to copy it.','bad'); }); };
-document.getElementById('flagHide').onclick = () => { localStorage.setItem('flagTipHidden','1'); flagTip(false); };
+document.getElementById('flagHide').onclick = () => { localStorage.setItem('flagTipHidden6','1'); flagTip(false); };
 let autoBusy = null;
 // Reconnect every panel that has a device Chrome still allows, all in parallel. Returns the panels still needing the chooser.
 async function autoReconnect(why, allowed){
@@ -576,11 +577,12 @@ async function autoReconnect(why, allowed){
   if (!allowed) allowed = await allowedDevices();
   const saved = panels.filter(p => p.hasSaved());
   const map = matchDevices(allowed);
-  const todo = panels.filter(p => !p.connected() && map.has(p));
-  const need = panels.filter(p => !p.connected() && !map.has(p));
+  const todo = panels.filter(p => !p.connected() && map.has(p) && !(p.manualDisc && why === 'page visible'));
+  const need = panels.filter(p => !p.connected() && !map.has(p) && !p.attaching);
   const unsupported = !navigator.bluetooth.getDevices;
-  if (saved.length && (unsupported || !allowed.length)) {
-    log(`${why}: ${saved.length} light(s) were paired before, but Chrome ${unsupported ? 'has no getDevices()' : 'returned no allowed devices'}. Enable the “Web Bluetooth new permissions backend” flag (see the banner at the top).`,'bad');
+  const lostAll = saved.filter(p => !map.has(p) && !p.connected());
+  if (lostAll.length && (unsupported || !allowed.length)) {
+    if (why === 'page load') log(`${why}: ${lostAll.length} light(s) were paired before, but this Chrome ${unsupported ? 'has no getDevices()' : 'returned no allowed devices'}, so they need the chooser again. Tap Connect all once per light.`);
     flagTip(true);
   } else if (allowed.length) flagTip(false);
   if (!todo.length) { if (why !== 'page visible') log(`${why}: nothing to reconnect${need.filter(p=>p.hasSaved()).length ? ` (${need.filter(p=>p.hasSaved()).length} paired light(s) need the chooser)` : ''}`); return need; }
@@ -595,21 +597,32 @@ async function autoReconnect(why, allowed){
   log(`${why}: ${ok}/${todo.length} reconnected${lost.length ? ` · Chrome forgot: ${lost.map(p=>p.key).join(', ')} (pick again)` : ''}${never.length ? ` · never paired: ${never.map(p=>p.key).join(', ')}` : ''}`, ok === todo.length ? 'ok' : 'bad');
   return need;
 }
+// Order for the one-chooser-per-tap flow: lights paired before (non-doors first), then never-paired non-doors.
+// Never-paired doors are left to their own "Show all devices" button so Connect all never pops an unfiltered list unasked.
+function chooserQueue(map){
+  const need = panels.filter(p => !p.connected() && !map.has(p));
+  const rank = p => (p.hasSaved() ? 0 : 2) + (p.door ? 1 : 0);
+  return need.filter(p => p.hasSaved() || !p.door).sort((x,y) => rank(x) - rank(y) || panels.indexOf(x) - panels.indexOf(y));
+}
+function updateConnectLabels(){
+  const q = chooserQueue(matchDevices(lastAllowed)), txt = q.length ? `Connect all · next: ${q[0].title.replace(/^\S+\s/,'')} (${q.length} to pick)` : 'Connect all';
+  ['mConnect','scConnect'].forEach(id => { const b = document.getElementById(id); if (b) b.textContent = txt; });
+}
 async function connectAll(){
   if (!navigator.bluetooth) return log('Web Bluetooth isn’t available here.','bad');
   // getDevices() is quick, so the tap still counts as a user gesture for the chooser below.
   const allowed = await allowedDevices(), map = matchDevices(allowed);
-  const known = panels.filter(p => !p.connected() && map.has(p));
-  const pick = panels.find(p => !p.connected() && !map.has(p));
-  const bg = autoReconnect('Connect all', allowed);   // all known lights, in parallel, no chooser
-  // Only open a chooser when there was nothing known to reconnect, so one tap never pops a chooser for an unpaired door.
-  if (pick && known.length) log(`Connect all: ${pick.title} isn’t paired in Chrome yet. Tap Connect all again (or its Show all devices button) to pick it.`);
-  else if (pick) { // Chrome allows one chooser per tap: open it now for the first light Chrome doesn't know
-    log(`Connect all: choose the device for ${pick.title}${pick.door?' (pick an “Unknown device”)':''}. Tap Connect all again for the next one.`);
-    pick.connect(!!pick.door, false);
+  const q = chooserQueue(map), pick = q[0];
+  const bg = autoReconnect('Connect all', allowed);   // lights we already hold or Chrome remembers: in parallel, no chooser
+  if (pick) { // Chrome allows one chooser per tap: open it for the next light, with that panel's filter
+    log(`Connect all: choose ${pick.title}${pick.door ? ' (pick an “Unknown device”)' : ''}${q.length > 1 ? `. ${q.length-1} more after this: ${q.slice(1).map(p=>p.title.replace(/^\S+\s/,'')).join(', ')}. Tap Connect all again for each.` : '.'}`);
+    pick.connect(!!pick.door, false).finally(updateConnectLabels);
   }
   await bg;
-  if (!panels.some(p => !p.connected())) log('Connect all: every light connected','ok');
+  const skipped = panels.filter(p => p.door && !p.hasSaved() && !p.connected());
+  if (!pick && skipped.length && skipped.length < 4) log(`Connect all: never-paired doors skipped (${skipped.map(p=>p.key).join(', ')}). Use their Show all devices button.`);
+  if (!panels.some(p => !p.connected() && !(p.door && !p.hasSaved()))) log('Connect all: every paired light connected','ok');
+  updateConnectLabels();
 }
 document.getElementById('mConnect').onclick = connectAll;
 document.getElementById('scConnect').onclick = connectAll;
@@ -728,8 +741,19 @@ updateAll();
   if (m.length){ s.hidden = false; s.textContent = m.join(' '); }
   log(`Ready (${APP_VERSION}). secureContext=${window.isSecureContext} webBluetooth=${!!navigator.bluetooth} getDevices=${!!(navigator.bluetooth&&navigator.bluetooth.getDevices)} watchAdvertisements=${!!(window.BluetoothDevice&&BluetoothDevice.prototype.watchAdvertisements)}`);
 })();
-// auto-reconnect on load: gatt.connect() needs no tap for devices getDevices() returns
-autoReconnect('page load');
+// diagnostics + auto-reconnect on load: gatt.connect() needs no tap for devices getDevices() returns
+(async () => {
+  const bt = navigator.bluetooth, gd = !!(bt && bt.getDevices);
+  const cv = (navigator.userAgent.match(/Chrome\/(\d+)/)||[])[1] || '?';
+  let avail = '?'; try { if (bt && bt.getAvailability) avail = await bt.getAvailability(); } catch(_){}
+  let allowed = [], gdMsg = 'not supported (normal on current Chrome)';
+  if (gd) { allowed = await allowedDevices(); gdMsg = `supported, returned ${allowed.length}${allowed.length ? ': ' + allowed.map(d => d.name || 'unnamed ' + d.id.slice(0,6)).join(', ') : ''}`; }
+  const saved = panels.filter(p => p.hasSaved()).length;
+  log(`Diagnostics: Chrome ${cv} · Bluetooth adapter ${avail === true ? 'on' : avail === false ? 'OFF or unavailable' : 'unknown'} · getDevices ${gdMsg} · watchAdvertisements=${!!(window.BluetoothDevice&&BluetoothDevice.prototype.watchAdvertisements)} · lights paired before: ${saved}`, gd && allowed.length ? 'ok' : '');
+  updateConnectLabels();
+  await autoReconnect('page load', allowed);
+  updateConnectLabels();
+})();
 </script>
 </body>
 </html>

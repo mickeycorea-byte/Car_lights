@@ -1,6 +1,6 @@
 // Car Lights service worker: "lights still ON" reminders (Android Chrome needs a SW for notifications)
 // and an offline copy of the page. Network first, so the phone always gets the newest page when online.
-const VERSION = 'car-lights-v5-2026-10-31';
+const VERSION = 'car-lights-v6-2026-10-31';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil((async () => {
   for (const k of await caches.keys()) if (k !== VERSION) await caches.delete(k);
